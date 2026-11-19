@@ -1,0 +1,41 @@
+{
+  "name": "touchline",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test:engine": "tsx scripts/test-engine.ts",
+    "test": "tsx scripts/test-engine.ts && tsx scripts/test-persistence.ts",
+    "test:persistence": "tsx scripts/test-persistence.ts",
+    "assets": "python3 scripts/make-assets.py",
+    "android:sync": "vite build && cap sync android",
+    "android:debug": "vite build && cap sync android && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "dexie": "^4.4.7",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "autoprefixer": "^10.6.2",
+    "fake-indexeddb": "^6.2.8",
+    "postcss": "^8.5.33",
+    "tailwindcss": "^3.4.19",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

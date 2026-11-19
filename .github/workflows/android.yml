@@ -1,0 +1,72 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check and run game tests
+        run: |
+          npx tsc --noEmit
+          npm test
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/Touchline-debug.apk
+          ls -lh out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Touchline-debug-apk
+          path: out/Touchline-debug.apk
+          if-no-files-found: error
+
+      - name: Publish rolling "latest" release
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest out/Touchline-debug.apk \
+            --prerelease \
+            --title "Touchline - latest build" \
+            --notes "Installable debug APK built from commit ${GITHUB_SHA::7}. Enable 'install unknown apps' on your Android device to sideload."
