@@ -2,6 +2,7 @@ import type { Club, Fixture, Game, League, MatchReport, Player } from './types';
 import { createWorld } from './generator';
 import { computeTable, leagueIdOf, makeFixtures, positionOf } from './fixtures';
 import { simulateMatch, type TeamSheet } from './match';
+import { aiTactics, instrOf, signatureChangeCost, tacticSignature } from './tactics';
 import { aiSelectTeam, bestLineupScore, invalidateIndex, repairLineup, squadOf, squadStrength, validateLineup, wageBill } from './team';
 import { matchdayRevenue, processWeekFinance } from './finance';
 import { addMessage, gameNow, nextUnread, unreadCount } from './messages';
@@ -94,12 +95,22 @@ export const seasonComplete = (g: Game): boolean => {
 };
 export const userRound = (g: Game): number => g.fixtures.filter((f) => f.played && (f.home === g.meta.userClubId || f.away === g.meta.userClubId)).length + 1;
 
+export function aiFamiliarity(g: Game, club: Club): number {
+  void g;
+  const base = 55 + club.reputation * 0.2;
+  const since = club.manager.since;
+  if (since === undefined) return base;
+  const days = Math.max(0, dayDiff(since, gameNow(g)));
+  return Math.min(base + 8, 38 + days * 0.35 + club.reputation * 0.05);
+}
+
 function sheetFor(g: Game, club: Club, home: boolean): TeamSheet {
   const isUser = club.id === g.meta.userClubId;
   return {
     clubId: club.id, name: club.name, formation: club.formation, mentality: club.mentality, style: club.style,
     xi: club.lineup.map((id) => g.players[id]), bench: club.bench.map((id) => g.players[id]), captainId: club.captainId, home,
-    familiarity: isUser ? g.training.familiarity : 55 + club.reputation * 0.2, medical: club.medicalLevel ?? 3,
+    familiarity: isUser ? g.training.familiarity : aiFamiliarity(g, club), medical: club.medicalLevel ?? 3,
+    instr: instrOf(club), roles: club.roles,
   };
 }
 
@@ -166,8 +177,8 @@ export function playFixtures(g: Game, t: number, includeUser: boolean): MatchRep
   need.forEach((id) => { strength[id] = bestLineupScore(squadOf(g, id), '4-3-3'); });
   for (const f of todays) {
     const h = g.clubs[f.home], a = g.clubs[f.away];
-    if (h.id !== user) aiSelectTeam(g, h, strength[a.id], true);
-    if (a.id !== user) aiSelectTeam(g, a, strength[h.id], false);
+    if (h.id !== user) { aiSelectTeam(g, h, strength[a.id], true); aiTactics(g, h, strength[h.id] - strength[a.id], true); }
+    if (a.id !== user) { aiSelectTeam(g, a, strength[h.id], false); aiTactics(g, a, strength[a.id] - strength[h.id], false); }
   }
   let userReport: MatchReport | undefined;
   const hurt = new Set<string>();
@@ -242,10 +253,10 @@ export function playTodayMatches(g: Game): PlayResult {
   const errors = validateLineup(g, user);
   if (errors.length) return { ok: false, error: 'Your lineup is invalid.', errors };
   // Changing formation resets some tactical familiarity
-  if (g.training.formation !== user.formation) {
-    g.training.familiarity = Math.max(20, g.training.familiarity - 25);
-    g.training.formation = user.formation;
-  }
+  const sig = tacticSignature(user);
+  if (g.training.sig && g.training.sig !== sig) g.training.familiarity = Math.max(15, g.training.familiarity - signatureChangeCost(g.training.sig, sig));
+  g.training.sig = sig;
+  g.training.formation = user.formation;
   const report = playFixtures(g, gameNow(g), true);
   return { ok: true, report };
 }

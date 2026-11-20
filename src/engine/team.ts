@@ -199,10 +199,5 @@ export function aiSelectTeam(g: Game, club: Club, oppStrength?: number, isHome =
   club.lineup = lineup;
   club.bench = bench;
   club.captainId = pickCaptain(g, club);
-  if (oppStrength !== undefined) {
-    const mine = bestScore;
-    const diff = mine - oppStrength;
-    club.mentality = diff > 3 && isHome ? 'attacking' : diff < -5 ? 'defensive' : 'balanced';
-    club.style = diff < -3 ? 'counter' : diff > 4 ? 'possession' : club.style;
-  }
+  void oppStrength; void isHome; // tactical instructions are chosen in tactics.aiTactics
 }

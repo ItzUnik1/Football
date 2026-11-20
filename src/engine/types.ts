@@ -2,8 +2,20 @@
 
 export type Pos = 'GK' | 'DF' | 'MF' | 'FW';
 export type Formation = '4-3-3' | '4-4-2' | '4-2-3-1';
-export type Mentality = 'defensive' | 'balanced' | 'attacking';
+export type Mentality = 'very_defensive' | 'defensive' | 'balanced' | 'attacking' | 'very_attacking';
 export type Style = 'possession' | 'direct' | 'counter';
+
+export type RoleId = string;
+export interface Instructions {
+  press: number; // 1..5
+  line: number; // 1..5 defensive line
+  tempo: number; // 1..5
+  width: number; // 1..5
+  passing: 'short' | 'mixed' | 'long';
+  counter: boolean;
+  setPieces: 'zonal' | 'mixed' | 'man';
+  corners: 'near' | 'far' | 'short';
+}
 
 export interface Slot {
   label: string;
@@ -79,7 +91,7 @@ export interface Player {
   joined?: number;
 }
 
-export interface Manager { name: string; age: number; nat: string; style: string }
+export interface Manager { name: string; age: number; nat: string; style: string; since?: number; id?: string }
 
 export interface Club {
   id: string;
@@ -108,6 +120,9 @@ export interface Club {
   medicalLevel?: number; // 1..5
   youthLevel?: number; // 1..5
   trainingLevel?: number; // 1..5
+  // Phase 3
+  instr?: Instructions;
+  roles?: string[]; // role id per lineup slot
 }
 
 export interface Fixture {
@@ -251,6 +266,24 @@ export interface MatchReport {
   analysis: string[];
   injuries: { playerId: string; weeks: number; days?: number; injury: string }[];
   bans: { playerId: string; matches: number }[];
+  // Phase 3
+  comp?: string; // 'league' | 'cup' | 'intl'
+  compName?: string;
+  et?: boolean; // went to extra time
+  shootout?: { home: number; away: number; kicks: { team: 'home' | 'away'; player: string; scored: boolean }[] };
+  factors?: string[]; // tactical explanations
+  tac?: { home: TacticalLog; away: TacticalLog };
+}
+export interface TacticalLog {
+  pressWins: number; pressShots: number; pressGoals: number;
+  counterAttacks: number; counterGoals: number;
+  behindChances: number; behindGoals: number;
+  cornerGoals: number; corners: number; setPieceGoals: number;
+  wideChances: number; centralChances: number;
+  lateConceded: number; // goals conceded after 65'
+  fatigue: number; // fatigue penalty 0..1 at the end
+  familiarity: number;
+  gkSweeps: number;
 }
 
 // ---------- Scouting ----------
@@ -306,6 +339,7 @@ export interface TrainingState {
   intensity: Intensity;
   familiarity: number; // 0..100 tactical familiarity
   formation: Formation;
+  sig?: string; // last tactical signature (for familiarity changes)
   youthProgram: 'balanced' | 'technical' | 'physical' | 'mental';
   log: { date: number; session: SessionType; note: string }[];
 }
