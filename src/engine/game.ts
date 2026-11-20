@@ -18,6 +18,8 @@ import { initBoard, ordinal, repRankIn, leagueTarget, weeklyBoard, userLeaguePos
 import { emptyHistory } from './history';
 import { rolloverSeason } from './season';
 import { youthIntake } from './youth';
+import { initPhase3, phase3Daily } from './world3';
+import { playIntlDay, userIntlFixtureToday, validateNationTeam, applyNationTactics } from './intl';
 
 export { ordinal };
 
@@ -34,14 +36,16 @@ export function newCareer(
   Object.values(w.leagues).forEach((lg) => fixtures.push(...makeFixtures(lg.clubIds, lg, season)));
   const date = START_DATE(season);
   const g: Game = {
-    meta: { userClubId, week: 1, season, startDate: date, date, nextMsg: 1, nextTx: 1, nextId: 1, seed, version: 2 },
+    meta: { userClubId, week: 1, season, startDate: date, date, nextMsg: 1, nextTx: 1, nextId: 1, seed, version: 3 },
     clubs: w.clubs, players: w.players, fixtures, messages: [], reports: {}, tx: [],
     leagues: w.leagues, history: emptyHistory(), scouting: undefined as never, board: undefined as never, training: undefined as never,
     events: [], installments: [],
+    cups: [], intl: undefined as never, career: undefined as never, mgrs: undefined as never, news: [], media: undefined as never, staffWorld: undefined as never,
   };
   initScouting(g);
   initTraining(g);
   initBoard(g);
+  initPhase3(g);
   const intake = youthIntake(g, userClubId);
   intake.forEach((p) => { p.age = Math.min(p.age, 18); });
   const club = g.clubs[userClubId];
@@ -93,7 +97,7 @@ export const seasonComplete = (g: Game): boolean => {
   const lid = leagueIdOf(g, g.meta.userClubId);
   return g.fixtures.every((f) => (f.leagueId ?? 'L1') !== lid || f.played);
 };
-export const userRound = (g: Game): number => g.fixtures.filter((f) => f.played && (f.home === g.meta.userClubId || f.away === g.meta.userClubId)).length + 1;
+export const userRound = (g: Game): number => g.fixtures.filter((f) => f.played && (f.comp ?? 'league') === 'league' && (f.home === g.meta.userClubId || f.away === g.meta.userClubId)).length + 1;
 
 export function aiFamiliarity(g: Game, club: Club): number {
   void g;
@@ -128,7 +132,7 @@ function scheduleUpcomingNotice(g: Game): void {
   });
 }
 
-function applyPlayerResults(g: Game, report: MatchReport, hurtOut: Set<string>): void {
+export function applyPlayerResults(g: Game, report: MatchReport, hurtOut: Set<string>, comp: 'league' | 'cup' | 'intl' = 'league'): void {
   const now = gameNow(g);
   for (const pm of report.players) {
     const p = g.players[pm.id];
@@ -136,13 +140,20 @@ function applyPlayerResults(g: Game, report: MatchReport, hurtOut: Set<string>):
     const won = pm.team === 'home' ? report.hg > report.ag : report.ag > report.hg;
     const lost = pm.team === 'home' ? report.hg < report.ag : report.ag < report.hg;
     const conceded = pm.team === 'home' ? report.ag : report.hg;
-    p.stats.apps++; if (pm.started) p.stats.starts++;
-    p.stats.goals += pm.goals; p.stats.assists += pm.assists;
-    p.stats.yellow += pm.yellow; p.stats.red += pm.red;
-    p.stats.minutes += pm.minutes; p.stats.ratingSum += pm.rating;
+    if (comp === 'league') {
+      p.stats.apps++; if (pm.started) p.stats.starts++;
+      p.stats.goals += pm.goals; p.stats.assists += pm.assists;
+      p.stats.yellow += pm.yellow; p.stats.red += pm.red;
+      p.stats.minutes += pm.minutes; p.stats.ratingSum += pm.rating;
+      if (p.pos === 'GK' && pm.minutes >= 60 && conceded === 0) p.stats.cleanSheets++;
+    } else if (comp === 'cup') {
+      const c = (p.cup ??= { apps: 0, goals: 0, assists: 0 }); c.apps++; c.goals += pm.goals; c.assists += pm.assists;
+      p.stats.minutes += pm.minutes; p.stats.yellow += pm.yellow; p.stats.red += pm.red;
+    } else {
+      const c = (p.intl ??= { caps: 0, goals: 0, assists: 0, ratingSum: 0 }); c.caps++; c.goals += pm.goals; c.assists += pm.assists; c.ratingSum += pm.rating;
+    }
     p.recentMinutes = (p.recentMinutes ?? 0) + pm.minutes;
     p.form = Math.round(((p.form ?? 6.5) * 0.7 + pm.rating * 0.3) * 100) / 100;
-    if (p.pos === 'GK' && pm.minutes >= 60 && conceded === 0) p.stats.cleanSheets++;
     const drop = Math.round((pm.minutes / 90) * (24 - p.phys.stamina / 8));
     p.fitness = clamp(p.fitness - drop, 20, 100);
     p.morale = clamp(p.morale + (won ? 3 : lost ? -3 : 0) + (pm.goals ? 2 : 0) + (pm.rating >= 8 ? 1.5 : 0) + (p.promisedStart && pm.started ? 4 : 0), 15, 100);
@@ -190,9 +201,15 @@ export function playFixtures(g: Game, t: number, includeUser: boolean): MatchRep
       for (const p of squadOf(g, c.id)) if (p.suspended > 0) p.suspended--; // serve a match ban
     }
     [...h.lineup, ...h.bench, ...a.lineup, ...a.bench].forEach((id) => played.add(id));
-    const report = simulateMatch(sheetFor(g, h, true), sheetFor(g, a, false), f.id, f.week, f.date, f.leagueId);
+    const isCup = f.comp === 'cup';
+    const report = simulateMatch(sheetFor(g, h, !f.neutral), sheetFor(g, a, false), f.id, f.week, f.date, f.leagueId, isCup ? { knockout: true, comp: 'cup', compName: g.cups.find((c) => c.id === f.cupId)?.rounds[f.round ?? 0]?.name, neutral: !!f.neutral } : {});
     f.played = true; f.hg = report.hg; f.ag = report.ag;
-    applyPlayerResults(g, report, hurt);
+    if (isCup) {
+      f.et = report.et;
+      if (report.shootout) f.pens = [report.shootout.home, report.shootout.away];
+      f.winner = report.hg > report.ag ? f.home : report.ag > report.hg ? f.away : (report.shootout!.home > report.shootout!.away ? f.home : f.away);
+    }
+    applyPlayerResults(g, report, hurt, isCup ? 'cup' : 'league');
     matchdayRevenue(g, f);
     if (h.id === user || a.id === user) { g.reports[f.id] = report; userReport = report; g.lastReportId = f.id; userFix.push(f); }
   }
@@ -209,10 +226,11 @@ function postMatchMessages(g: Game, report: MatchReport, hurt: string[]): void {
   const gf = home ? report.hg : report.ag, ga = home ? report.ag : report.hg;
   const opp = home ? report.awayName : report.homeName;
   const res = gf > ga ? 'Win' : gf < ga ? 'Defeat' : 'Draw';
+  const cupGame = report.comp === 'cup';
   addMessage(g, {
-    category: 'Fixtures', from: 'Match Report', subject: `Full time: ${report.homeName} ${report.hg}-${report.ag} ${report.awayName}`,
-    body: `${res} ${home ? 'at home' : 'away'} against ${opp}. Position: ${ordinal(positionOf(g, me.id))}.`,
-    action: { kind: 'goto', screen: 'fixtures' },
+    category: cupGame ? 'Competitions' : 'Fixtures', from: 'Match Report', subject: `${cupGame ? `Cup - ${report.compName ?? ''}: ` : 'Full time: '}${report.homeName} ${report.hg}-${report.ag} ${report.awayName}${report.shootout ? ` (pens ${report.shootout.home}-${report.shootout.away})` : report.et ? ' (aet)' : ''}`,
+    body: `${res} ${home ? 'at home' : 'away'} against ${opp}.${cupGame ? '' : ` Position: ${ordinal(positionOf(g, me.id))}.`}`,
+    action: { kind: 'goto', screen: cupGame ? 'cups' : 'fixtures' },
   });
   for (const id of hurt) {
     const p = g.players[id];
@@ -231,6 +249,7 @@ function postMatchMessages(g: Game, report: MatchReport, hurt: string[]): void {
       });
     }
   }
+  if (cupGame) return;
   if (seasonComplete(g)) {
     const table = computeTable(g);
     const pos = table.findIndex((r) => r.clubId === me.id) + 1;
@@ -247,7 +266,18 @@ function postMatchMessages(g: Game, report: MatchReport, hurt: string[]): void {
 export function playTodayMatches(g: Game): PlayResult {
   if (g.meta.sacked) return { ok: false, error: 'You have been dismissed.' };
   const f = userFixtureToday(g);
-  if (!f) return { ok: false, error: 'There is no match today.' };
+  if (!f) {
+    const fi = userIntlFixtureToday(g);
+    if (fi && !fi.played) {
+      const n = g.intl.nations[g.intl.userNation!];
+      const errs = validateNationTeam(g, n);
+      if (errs.length) return { ok: false, error: 'Your international lineup is invalid.', errors: errs };
+      applyNationTactics(g, n);
+      const report = playIntlDay(g, gameNow(g), true);
+      return { ok: true, report };
+    }
+    return { ok: false, error: 'There is no match today.' };
+  }
   if (f.played) return { ok: false, error: 'Today\'s match has already been played.' };
   const user = userClub(g);
   const errors = validateLineup(g, user);
@@ -273,6 +303,8 @@ export function continueDay(g: Game): DayResult {
   if (g.meta.sacked) return { ok: false, blocked: 'sacked', date: gameNow(g) };
   const f = userFixtureToday(g);
   if (f && !f.played) return { ok: false, blocked: 'match', date: gameNow(g) };
+  const fi = userIntlFixtureToday(g);
+  if (fi && !fi.played) return { ok: false, blocked: 'match', date: gameNow(g) };
   endDay(g);
   return { ok: true, date: gameNow(g) };
 }
@@ -290,6 +322,7 @@ function endDay(g: Game): void {
   dailyUserTraining(g, sessionFor(g, t, !!mt, mtm));
   scoutingTick(g);
   processInstalments(g);
+  phase3Daily(g);
   if (isWindowOpen(t) && (dayDiff(g.meta.startDate, t) % 2 === 0 || (daysToDeadline(t) ?? 9) <= 1)) { aiTransferRound(g); aiLoanRound(g); }
   expireMessages(g);
 
@@ -410,6 +443,8 @@ export function advance(g: Game, mode: AdvanceMode, n = 1): AdvanceResult {
     if (g.meta.season !== startSeason) { stop = 'season'; reason = 'A new season has begun'; break; }
     const f = userFixtureToday(g);
     if (f && !f.played) { stop = 'match'; reason = 'Match day'; break; }
+    const fi = userIntlFixtureToday(g);
+    if (fi && !fi.played) { stop = 'match'; reason = 'International match day'; break; }
     if (g.meta.sacked) { stop = 'sacked'; break; }
     if (mode === 'event') {
       const fresh = g.messages.slice(startMsgCount).find((m) => !m.resolved && m.action && ACTIONABLE.has(m.action.kind));

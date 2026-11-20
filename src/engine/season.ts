@@ -15,6 +15,7 @@ import { chance, randInt, pick, clamp } from './rng';
 import { fmtMoney, valueOf } from './valuation';
 import { LEAGUE_DEFS } from './names';
 import { addTx } from './messages';
+import { rolloverPhase3 } from './world3';
 
 const avg = (p: Player) => (p.stats.apps ? p.stats.ratingSum / p.stats.apps : 0);
 
@@ -198,6 +199,7 @@ export function rolloverSeason(g: Game): void {
   g.fixtures = [];
   for (const lg of Object.values(g.leagues)) g.fixtures.push(...makeFixtures(lg.clubIds, lg, newSeason));
   g.reports = {}; g.lastReportId = undefined;
+  rolloverPhase3(g);
   // user tier changes
   const newLid = g.clubs[user].leagueId ?? 'L1';
   initBoard(g);

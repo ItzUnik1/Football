@@ -1,4 +1,6 @@
 // Core domain types for Touchline. Pure data - no UI or DB imports.
+import type { Cup, IntlState, ManagerCareer, ManagerWorld, MediaState, NewsItem, StaffWorld, ClubEcon, StaffMember } from './types3';
+export type * from './types3';
 
 export type Pos = 'GK' | 'DF' | 'MF' | 'FW';
 export type Formation = '4-3-3' | '4-4-2' | '4-2-3-1';
@@ -89,7 +91,18 @@ export interface Player {
   career?: CareerStats;
   wantsMove?: boolean;
   joined?: number;
+  // Phase 3
+  cup?: { apps: number; goals: number; assists: number };
+  intl?: { caps: number; goals: number; assists: number; ratingSum: number };
+  bonuses?: ContractBonuses;
+  friends?: string[];
+  rivals?: string[];
+  ptExp?: number; // playing-time satisfaction -1..1 (rolling)
+  contractWarn?: number; // last contract-expiry notice stage sent (180/90/30)
+  loyaltyYears?: number;
+  captainOf?: boolean;
 }
+export interface ContractBonuses { appearance: number; goal: number; cleanSheet: number; loyalty: number; promotion?: number; wageRise?: number }
 
 export interface Manager { name: string; age: number; nat: string; style: string; since?: number; id?: string }
 
@@ -123,6 +136,8 @@ export interface Club {
   // Phase 3
   instr?: Instructions;
   roles?: string[]; // role id per lineup slot
+  econ?: ClubEcon;
+  staff?: StaffMember[];
 }
 
 export interface Fixture {
@@ -136,6 +151,14 @@ export interface Fixture {
   // Phase 2
   leagueId?: string;
   date?: number; // epoch ms (UTC midnight)
+  // Phase 3 (cups)
+  comp?: 'league' | 'cup';
+  cupId?: string;
+  round?: number; // cup round index (0-based)
+  et?: boolean;
+  pens?: [number, number];
+  winner?: string; // club id of the winner (cups)
+  neutral?: boolean;
 }
 
 export interface League {
@@ -152,8 +175,8 @@ export interface League {
 
 export type Category =
   | 'Transfers' | 'Contracts' | 'Medical' | 'Board' | 'Players' | 'Fixtures' | 'Competitions' | 'Finances'
-  | 'Scouting' | 'Youth' | 'Training';
-export const CATEGORIES: Category[] = ['Transfers', 'Contracts', 'Medical', 'Board', 'Players', 'Fixtures', 'Competitions', 'Finances', 'Scouting', 'Youth', 'Training'];
+  | 'Scouting' | 'Youth' | 'Training' | 'Media' | 'Staff' | 'Manager' | 'International';
+export const CATEGORIES: Category[] = ['Transfers', 'Contracts', 'Medical', 'Board', 'Players', 'Fixtures', 'Competitions', 'Finances', 'Scouting', 'Youth', 'Training', 'Media', 'Staff', 'Manager', 'International'];
 
 export type MsgAction =
   | { kind: 'transfer_offer'; playerId: string; clubId: string; fee: number; expires: number }
@@ -165,7 +188,11 @@ export type MsgAction =
   | { kind: 'youth_contract'; playerId: string; expires: number }
   | { kind: 'wants_move'; playerId: string; expires: number }
   | { kind: 'loan_option'; playerId: string; fee: number; obligatory: boolean; expires: number }
-  | { kind: 'board_funds'; amount: number; expires: number };
+  | { kind: 'board_funds'; amount: number; expires: number }
+  | { kind: 'press'; topic: string; playerId?: string; clubId?: string; expires: number }
+  | { kind: 'job_offer'; clubId?: string; nationId?: string; wage: number; years: number; expires: number }
+  | { kind: 'staff_offer'; staffId: string; expires: number }
+  | { kind: 'intl_callup'; nationId: string; expires: number };
 
 export interface Message {
   id: string;
@@ -187,7 +214,7 @@ export interface Tx {
   week: number;
   date?: number;
   clubId: string;
-  type: 'transfer_in' | 'transfer_out' | 'loan_in' | 'loan_out' | 'wages' | 'tv' | 'matchday' | 'bonus' | 'contract' | 'agent' | 'prize' | 'staff' | 'installment';
+  type: 'transfer_in' | 'transfer_out' | 'loan_in' | 'loan_out' | 'wages' | 'tv' | 'matchday' | 'bonus' | 'contract' | 'agent' | 'prize' | 'staff' | 'installment' | 'sponsor' | 'merch' | 'season_tickets' | 'stadium' | 'interest' | 'tv_bonus';
   amount: number; // + income / - expense
   desc: string;
 }
@@ -204,6 +231,7 @@ export interface Meta {
   version: number;
   nextId?: number; // generic id counter (events, reports, fixtures)
   sacked?: boolean;
+  intlNextId?: number;
 }
 
 export interface MatchEvent {
@@ -379,6 +407,12 @@ export interface ClubRecords {
 export interface HistoryState {
   seasons: SeasonRecord[];
   clubs: Record<string, ClubRecords>;
+  // Phase 3
+  cups?: { season: number; name: string; winner: string; runnerUp: string; score: string }[];
+  transferRecords?: { season: number; player: string; from: string; to: string; fee: number }[]; // top fees ever (bounded)
+  scorers?: { playerId: string; name: string; goals: number; apps: number; clubs: string[] }[]; // all-time top scorers (bounded)
+  managerRecords?: { name: string; clubId: string; titles: number; wins: number; matches: number }[];
+  records?: { id: string; label: string; value: number; holder: string; season: number }[];
 }
 
 export interface CalendarEventStored {
@@ -407,6 +441,14 @@ export interface Game {
   training: TrainingState;
   events: CalendarEventStored[];
   installments: Installment[];
+  // Phase 3
+  cups: Cup[];
+  intl: IntlState;
+  career: ManagerCareer;
+  mgrs: ManagerWorld;
+  news: NewsItem[];
+  media: MediaState;
+  staffWorld: StaffWorld;
   idx?: Map<string, Player[]>; // runtime index (not persisted)
 }
 
