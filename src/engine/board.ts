@@ -6,6 +6,7 @@ import { fmtMoney } from './valuation';
 import { wageBill } from './team';
 import { clubRecords } from './history';
 import { addDays } from './calendar';
+import { acceptClubJob, availableJobs, onUserDismissed } from './mgr';
 
 export const ordinal = (n: number): string => { const s = ['th', 'st', 'nd', 'rd']; const v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
 
@@ -87,7 +88,7 @@ export function weeklyBoard(g: Game): void {
     addMessage(g, { category: 'Board', from: 'Chairman', important: true, subject: 'The board is concerned', body: `Confidence in your management has fallen to ${Math.round(b.confidence)}%. We expect results to improve quickly. ${lt.text}`, action: { kind: 'goto', screen: 'board' } });
   }
   if (b.confidence < 12 && row.played >= 14 && b.warned >= 2) {
-    g.meta.sacked = true;
+    onUserDismissed(g);
     addMessage(g, { category: 'Board', from: 'Chairman', important: true, subject: 'You have been dismissed', body: `After a run of poor results and with confidence at ${Math.round(b.confidence)}%, the board has decided to part company with you. Thank you for your service.`, action: { kind: 'goto', screen: 'board' } });
   }
   // Funds request opportunity when confidence is high
@@ -126,23 +127,22 @@ export function seasonEndBoard(g: Game, pos: number): { met: boolean; summary: s
   return { met, summary };
 }
 
-export function takeNewJob(g: Game, clubId: string): void {
-  const old = g.clubs[g.meta.userClubId];
-  g.meta.userClubId = clubId;
-  g.meta.sacked = false;
-  const club = g.clubs[clubId];
-  club.manager = { ...old.manager };
-  initBoard(g);
-  g.board.confidence = 55;
-  g.board.seasonStartBalance = club.balance;
-  g.training.formation = club.formation;
-  g.scouting.assignments = [];
-  addMessage(g, { category: 'Board', from: 'Chairman', important: true, subject: `Welcome to ${club.name}`, body: `The board of ${club.name} has appointed you as manager. ${g.board.objectives[0].desc}` });
+/** Takes a vacant job with default interview answers (the Manager screen offers the full interview). */
+export function takeNewJob(g: Game, clubId: string): { ok: boolean; message: string } {
+  const r = acceptClubJob(g, clubId, { ambition: 'realistic', transfers: 'balanced', youth: true });
+  if (r.ok) {
+    const club = g.clubs[clubId];
+    initBoard(g);
+    g.board.confidence = 55;
+    g.board.seasonStartBalance = club.balance;
+    g.training.formation = club.formation;
+    g.scouting.assignments = [];
+    addMessage(g, { category: 'Board', from: 'Chairman', important: true, subject: `Welcome to ${club.name}`, body: `The board of ${club.name} has appointed you as manager. ${g.board.objectives[0].desc}` });
+  }
+  return r;
 }
 
 export function jobOffers(g: Game): string[] {
-  const cur = g.clubs[g.meta.userClubId];
-  return Object.values(g.clubs).filter((c) => c.id !== cur.id && c.reputation <= cur.reputation + 4 && c.reputation >= 15)
-    .sort((a, b) => b.reputation - a.reputation).slice(0, 5).map((c) => c.id);
+  return availableJobs(g).filter((j) => j.clubId).map((j) => j.clubId!).slice(0, 8);
 }
 export type { BoardState };

@@ -16,6 +16,7 @@ import { fmtMoney, valueOf } from './valuation';
 import { LEAGUE_DEFS } from './names';
 import { addTx } from './messages';
 import { rolloverPhase3 } from './world3';
+import { careerSeasonEnd } from './mgr';
 
 const avg = (p: Player) => (p.stats.apps ? p.stats.ratingSum / p.stats.apps : 0);
 
@@ -76,6 +77,7 @@ export function rolloverSeason(g: Game): void {
     if (r.clubId === user) addTx(g, user, 'prize', pm, `Prize money: ${ordinal(i + 1)} in ${ls.leagueName}`);
   }));
   const board = seasonEndBoard(g, userPos);
+  careerSeasonEnd(g, { pos: userPos, metObjective: board.met, champion: userPos === 1, promoted: userLS.promoted.includes(user), relegated: userLS.relegated.includes(user) });
   const rec = clubRecords(g, user);
   if (userPos === 1) rec.titles.push(season);
   if (!rec.bestFinish || userLS.tier < rec.bestFinish.tier || (userLS.tier === rec.bestFinish.tier && userPos < rec.bestFinish.pos)) rec.bestFinish = { season, pos: userPos, tier: userLS.tier };

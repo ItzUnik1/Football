@@ -9,6 +9,7 @@ import { addMessage, gameNow } from './messages';
 import { addNews } from './news';
 import { seasonSlots } from './slots';
 import { applyPlayerResults } from './game';
+import { recordUserMatch } from './mgr';
 
 const CODES: Record<string, string> = { England: 'ENG', Spain: 'ESP', Brazil: 'BRA', France: 'FRA', Germany: 'GER', Italy: 'ITA', Portugal: 'POR', Netherlands: 'NED', Argentina: 'ARG', Nigeria: 'NGA', Japan: 'JPN', Croatia: 'CRO', Ghana: 'GHA', Denmark: 'DEN' };
 export const nationIdOf = (name: string): string => 'N:' + (CODES[name] ?? name.slice(0, 3).toUpperCase());
@@ -236,7 +237,7 @@ export function playIntlDay(g: Game, t: number, includeUser: boolean): MatchRepo
       const tn = g.intl.tournaments.find((x) => x.id === f.compId);
       if (tn) for (const pm of report.players) if (pm.goals) { const s = (tn.scorers[pm.id] ??= { name: pm.name, nat: g.players[pm.id]?.nat ?? '', goals: 0 }); s.goals += pm.goals; }
     }
-    if (f.home === g.intl.userNation || f.away === g.intl.userNation) { g.reports[f.id] = report; g.lastReportId = f.id; userReport = report; }
+    if (f.home === g.intl.userNation || f.away === g.intl.userNation) { g.reports[f.id] = report; g.lastReportId = f.id; userReport = report; recordUserMatch(g, report, true); }
   }
   // Injury notices for the user's own club players on international duty
   const me = g.meta.userClubId;

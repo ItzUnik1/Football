@@ -2,6 +2,7 @@ import type { Game } from './types';
 import { createCup, cupDaily } from './cups';
 import { initIntl, intlDaily, playIntlDay, rolloverIntl } from './intl';
 import { gameNow } from './messages';
+import { initManagers, rolloverManagers } from './mgr';
 
 /** Idempotent initialiser for all Phase 3 state. Used for new careers and when upgrading a Phase 2 save. */
 export function initPhase3(g: Game): void {
@@ -9,6 +10,7 @@ export function initPhase3(g: Game): void {
   g.cups ??= [];
   if (!g.cups.some((c) => c.season === g.meta.season)) g.cups.push(createCup(g, g.meta.season));
   initIntl(g);
+  initManagers(g);
 }
 
 /** Daily Phase 3 processing, in a fixed order. */
@@ -24,4 +26,5 @@ export function rolloverPhase3(g: Game): void {
   if (!g.cups.some((c) => c.season === g.meta.season)) g.cups.push(createCup(g, g.meta.season));
   for (const p of Object.values(g.players)) p.cup = undefined;
   rolloverIntl(g);
+  rolloverManagers(g);
 }

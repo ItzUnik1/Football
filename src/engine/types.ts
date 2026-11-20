@@ -104,7 +104,12 @@ export interface Player {
 }
 export interface ContractBonuses { appearance: number; goal: number; cleanSheet: number; loyalty: number; promotion?: number; wageRise?: number }
 
-export interface Manager { name: string; age: number; nat: string; style: string; since?: number; id?: string }
+export interface Manager {
+  name: string; age: number; nat: string; style: string; since?: number; id?: string;
+  // Phase 3
+  rep?: number; tactical?: number; motivation?: number; youth?: number; exp?: number;
+  contractEnd?: number; wage?: number; pressure?: number; caretaker?: boolean; retired?: boolean; record?: { p: number; w: number; d: number; l: number };
+}
 
 export interface Club {
   id: string;

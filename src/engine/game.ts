@@ -19,6 +19,7 @@ import { emptyHistory } from './history';
 import { rolloverSeason } from './season';
 import { youthIntake } from './youth';
 import { initPhase3, phase3Daily } from './world3';
+import { mgrMonthly, mgrWeekly, recordUserMatch, userContractWatch } from './mgr';
 import { playIntlDay, userIntlFixtureToday, validateNationTeam, applyNationTactics } from './intl';
 
 export { ordinal };
@@ -114,7 +115,7 @@ function sheetFor(g: Game, club: Club, home: boolean): TeamSheet {
     clubId: club.id, name: club.name, formation: club.formation, mentality: club.mentality, style: club.style,
     xi: club.lineup.map((id) => g.players[id]), bench: club.bench.map((id) => g.players[id]), captainId: club.captainId, home,
     familiarity: isUser ? g.training.familiarity : aiFamiliarity(g, club), medical: club.medicalLevel ?? 3,
-    instr: instrOf(club), roles: club.roles,
+    instr: instrOf(club), roles: club.roles, managerQ: club.manager.tactical ?? 10,
   };
 }
 
@@ -216,7 +217,7 @@ export function playFixtures(g: Game, t: number, includeUser: boolean): MatchRep
   // Bench streak for the user's squad
   if (userReport) for (const p of squadOf(g, user)) if (!played.has(p.id)) { p.benchStreak++; p.morale = clamp(p.morale - 0.5, 15, 100); }
   g.meta.week = userRound(g);
-  if (userReport) postMatchMessages(g, userReport, [...hurt]);
+  if (userReport) { recordUserMatch(g, userReport); postMatchMessages(g, userReport, [...hurt]); }
   return userReport;
 }
 
@@ -367,6 +368,8 @@ function weeklyTick(g: Game): void {
   aiFinance(g);
   weeklyDressingRoom(g);
   weeklyBoard(g);
+  mgrWeekly(g);
+  userContractWatch(g);
   // Contract proposals when one year or less remains (once per season per player)
   const sStart = seasonStart(g.meta.season);
   const squad = squadOf(g, me.id).sort((a, b) => b.ovr - a.ovr);
@@ -414,6 +417,7 @@ function weeklyTick(g: Game): void {
 
 function monthlyTick(g: Game): void {
   monthlyDevelopment(g);
+  mgrMonthly(g);
   const p = parts(gameNow(g));
   if (p.m === 11 || p.m === 3) aiRenewals(g);
   if (p.m === 11 || p.m === 3 || p.m === 5) {

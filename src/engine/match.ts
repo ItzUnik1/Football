@@ -18,6 +18,7 @@ export interface TeamSheet {
   instr?: Instructions;
   roles?: string[]; // role id per XI slot
   analyst?: number; // 0..20 analyst quality (small bonus)
+  managerQ?: number; // manager tactical ability 1..20
 }
 
 export interface MatchOpts { knockout?: boolean; comp?: string; compName?: string; neutral?: boolean }
@@ -109,7 +110,7 @@ function computeLines(s: Side, minute: number): void {
   def += (3 - I.press) * 0.4;
   // Tactical analyst
   const an = s.sheet.analyst ?? 10;
-  const anB = (an - 10) * 0.05;
+  const anB = (an - 10) * 0.05 + ((s.sheet.managerQ ?? 10) - 10) * 0.07;
   atk += anB; def += anB;
 
   // Fatigue: intensity vs stamina, increasing through the match

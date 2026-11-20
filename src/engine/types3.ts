@@ -1,5 +1,5 @@
 // Phase 3 domain types: cups, international football, managers, news and media, staff, stadium and economy.
-import type { Formation, Instructions, Mentality, Style, Pos } from './types';
+import type { Formation, Instructions, Manager, Mentality, Style, Pos } from './types';
 
 // ---------- Domestic cup ----------
 export interface CupRound { n: number; name: string; date: number; drawn: boolean; done: boolean }
@@ -63,15 +63,7 @@ export interface IntlState {
 }
 
 // ---------- Managers ----------
-export interface Mgr {
-  id: string; name: string; age: number; nat: string; style: string; // philosophy
-  rep: number; // 1..100
-  tactical: number; motivation: number; youth: number; // 1..20
-  exp: number; // seasons managed
-  clubId: string | null; nationId?: string | null;
-  since?: number; contractEnd?: number; wage: number;
-  retired?: boolean;
-}
+export type Mgr = Manager & { id: string; rep: number; tactical: number; motivation: number; youth: number; exp: number; wage: number };
 export interface CareerEntry {
   kind: 'club' | 'nation'; id: string; name: string;
   from: number; to?: number; // dates
@@ -97,7 +89,7 @@ export interface ManagerCareer {
   resigned?: boolean;
   unemployedSince?: number;
 }
-export interface ManagerWorld { pool: Mgr[]; vacancies: { clubId?: string; nationId?: string; since: number }[]; nextId: number; log: { date: number; text: string }[] }
+export interface ManagerWorld { pool: Mgr[]; vacancies: { clubId?: string; nationId?: string; since: number; fillOn: number }[]; nextId: number; log: { date: number; text: string }[] }
 
 // ---------- News ----------
 export type NewsCat = 'league' | 'transfer' | 'manager' | 'injury' | 'development' | 'finance' | 'competition' | 'intl' | 'record' | 'media' | 'club';

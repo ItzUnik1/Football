@@ -5,6 +5,7 @@ import { addMessage, addTx, gameNow } from './messages';
 import { addNews } from './news';
 import { cupFinalDate, seasonSlots } from './slots';
 import { fmtMoney } from './valuation';
+import { addCupTrophyToEntry } from './mgr';
 
 export const CUP_ROUND_NAMES = ['First Round', 'Second Round', 'Round of 16', 'Quarter-final', 'Semi-final', 'Final'];
 export const CUP_PRIZE = [60_000, 120_000, 250_000, 500_000, 1_000_000, 3_000_000];
@@ -101,7 +102,7 @@ function finishRound(g: Game, cup: Cup, ri: number): void {
     g.history.cups ??= [];
     g.history.cups.push({ season: cup.season, name: cup.name, winner: cup.winner!, runnerUp: cup.runnerUp, score: `${f.hg}-${f.ag}${f.pens ? ` (${f.pens[0]}-${f.pens[1]} pens)` : f.et ? ' aet' : ''}` });
     if (g.history.cups.length > 60) g.history.cups.shift();
-    if (cup.winner === me && g.career) g.career.trophies.push({ season: cup.season, name: cup.name, club: g.clubs[me].name });
+    if (cup.winner === me && g.career) { g.career.trophies.push({ season: cup.season, name: cup.name, club: g.clubs[me].name }); addCupTrophyToEntry(g, cup.name); }
   } else {
     addNews(g, 'competition', `${CUP_NAME}: ${CUP_ROUND_NAMES[ri + 1].toLowerCase()} line-up set`, { body: `Remaining: ${cup.alive.length} clubs. Next round ${fmtDateShort(cup.rounds[ri + 1].date)}.` });
   }
