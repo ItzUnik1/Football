@@ -6,13 +6,14 @@ import { contractEndFor, addDays } from './calendar';
 import { chance, randInt } from './rng';
 import { valueOf } from './valuation';
 import { fmtMoney } from './valuation';
+import { staffEff } from './staff';
 
 export const ACADEMY_MAX = 14;
 
 /** Annual youth intake for a club's academy. Quality depends on youth facilities. */
 export function youthIntake(g: Game, clubId: string): Player[] {
   const club = g.clubs[clubId];
-  const lvl = club.youthLevel ?? 3;
+  const lvl = Math.min(5.5, (club.youthLevel ?? 3) * (0.8 + 0.2 * staffEff(club, 'youth_coach')));
   const count = randInt(3, 4) + Math.floor(lvl / 2);
   const out: Player[] = [];
   const room = ACADEMY_MAX - academyOf(g, clubId).length;

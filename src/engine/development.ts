@@ -3,6 +3,7 @@ import { addMessage, gameNow } from './messages';
 import { chance, clamp, rand, randInt, pick } from './rng';
 import { computeOvr, valueOf } from './valuation';
 import { squadOf } from './team';
+import { staffEff } from './staff';
 import { dayDiff, weekday, fmtDate } from './calendar';
 
 type AttrKey = 'passing' | 'dribbling' | 'shooting' | 'finishing' | 'tackling' | 'handling' | 'pace' | 'stamina' | 'strength' | 'jumping' | 'vision' | 'composure' | 'positioning' | 'workrate';
@@ -63,7 +64,7 @@ export function monthlyDevelopment(g: Game): void {
     const p = g.players[id];
     if (!p.clubId && !p.prospect) continue;
     const club = p.clubId ? g.clubs[p.clubId] : null;
-    const tl = club?.trainingLevel ?? 2;
+    const tl = (club?.trainingLevel ?? 2) * staffEff(club ?? undefined, 'coach') * (p.pos === 'GK' ? 0.6 + 0.4 * staffEff(club ?? undefined, 'goalkeeping') : 1);
     const pro = (p.personality?.professionalism ?? 10) / 20;
     const minutes = p.recentMinutes ?? 0; // rolling minutes (decayed monthly)
     const playBonus = p.academy ? (p.trainWithFirst ? 0.8 : 0.4) : clamp(minutes / 360, 0, 1);
@@ -76,7 +77,7 @@ export function monthlyDevelopment(g: Game): void {
     if (gap <= 0) pUp *= 0.25;
     else pUp *= clamp(0.4 + gap / 12, 0.4, 1.4);
     pUp *= 0.65 + tl * 0.1 + pro * 0.3 + playBonus * 0.35;
-    if (p.academy) pUp *= club?.youthLevel ? 0.6 + (club.youthLevel ?? 3) * 0.1 : 0.8;
+    if (p.academy) pUp *= (club?.youthLevel ? 0.6 + (club.youthLevel ?? 3) * 0.1 : 0.8) * staffEff(club ?? undefined, 'youth_coach');
     if (chance(pUp)) {
       let key: AttrKey;
       let f = p.focus ?? 'auto';
@@ -133,7 +134,8 @@ export function dailyUserTraining(g: Game, session: SessionType): void {
   const tr = g.training;
   const club = g.clubs[g.meta.userClubId];
   const im = INTENSITY_MULT[tr.intensity];
-  const tl = club.trainingLevel ?? 3;
+  const tl = (club.trainingLevel ?? 3) * staffEff(club, 'coach');
+  const fitEff = staffEff(club, 'fitness'), physEff = staffEff(club, 'physio');
   for (const p of squadOf(g, club.id)) {
     if (p.injuredDays > 0) continue;
     const pro = (p.personality?.professionalism ?? 10) / 20;
@@ -150,7 +152,7 @@ export function dailyUserTraining(g: Game, session: SessionType): void {
     else if (session === 'Rest') p.fitness = clamp(p.fitness + 2, 20, 100);
     // Injury risk from hard sessions (lower with good medical staff, higher when tired or returning)
     if (session !== 'Rest' && session !== 'Recovery') {
-      const risk = 0.0006 * im * (p.fitness < 60 ? 2 : 1) * ((p.returnDays ?? 0) > 0 ? 2 : 1) * (1.2 - (club.medicalLevel ?? 3) * 0.1);
+      const risk = 0.0006 * im * (p.fitness < 60 ? 2 : 1) * ((p.returnDays ?? 0) > 0 ? 2 : 1) * (1.2 - (club.medicalLevel ?? 3) * 0.1) / (0.5 + 0.5 * fitEff);
       if (chance(risk)) {
         const days = randInt(3, 24);
         injure(g, p, days, pick(['Muscle strain', 'Twisted ankle', 'Groin strain', 'Calf strain']));
@@ -158,7 +160,9 @@ export function dailyUserTraining(g: Game, session: SessionType): void {
       }
     }
   }
-  if (session === 'Tactical') tr.familiarity = clamp(tr.familiarity + 3 * im, 0, 100);
+  void physEff;
+  const asst = staffEff(club, 'assistant');
+  if (session === 'Tactical') tr.familiarity = clamp(tr.familiarity + 3 * im * asst, 0, 100);
   else if (session === 'Set pieces' || session === 'Attacking' || session === 'Defending') tr.familiarity = clamp(tr.familiarity + 1 * im, 0, 100);
   else tr.familiarity = clamp(tr.familiarity - 0.15, 0, 100);
   tr.log.unshift({ date: gameNow(g), session, note: `${session} (${tr.intensity})` });
@@ -173,7 +177,7 @@ export function dailyRecovery(g: Game): { recovered: Player[] } {
     if (!p.clubId) continue;
     const club = g.clubs[p.clubId];
     if (p.injuredDays > 0) {
-      p.injuredDays -= 1 + (chance(((club?.medicalLevel ?? 3) - 1) * 0.06) ? 1 : 0);
+      p.injuredDays -= 1 + (chance((((club?.medicalLevel ?? 3) - 1) * 0.06) * staffEff(club, 'physio')) ? 1 : 0);
       if (p.injuredDays <= 0) {
         p.injuredDays = 0;
         const last = p.injuries?.[p.injuries.length - 1];

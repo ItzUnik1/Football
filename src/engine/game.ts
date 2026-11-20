@@ -5,7 +5,7 @@ import { simulateMatch, type TeamSheet } from './match';
 import { aiTactics, instrOf, signatureChangeCost, tacticSignature } from './tactics';
 import { aiSelectTeam, bestLineupScore, invalidateIndex, repairLineup, squadOf, squadStrength, validateLineup, wageBill } from './team';
 import { matchdayRevenue, weeklyEcon, econMonthly } from './econ';
-import { staffMonthly } from './staff';
+import { staffMonthly, staffEff, staffAbility } from './staff';
 import { addMessage, gameNow, nextUnread, unreadCount } from './messages';
 import { aiFinance, aiLoanRound, aiRenewals, aiTransferRound } from './ai';
 import { contractProposalMessage, expireMessages } from './inbox';
@@ -115,7 +115,7 @@ function sheetFor(g: Game, club: Club, home: boolean): TeamSheet {
   return {
     clubId: club.id, name: club.name, formation: club.formation, mentality: club.mentality, style: club.style,
     xi: club.lineup.map((id) => g.players[id]), bench: club.bench.map((id) => g.players[id]), captainId: club.captainId, home,
-    familiarity: isUser ? g.training.familiarity : aiFamiliarity(g, club), medical: club.medicalLevel ?? 3,
+    familiarity: isUser ? g.training.familiarity : aiFamiliarity(g, club), medical: clamp(Math.round((club.medicalLevel ?? 3) * 0.5 + staffEff(club, 'physio') * 3), 1, 5), analyst: Math.round(staffAbility(club, 'analyst')),
     instr: instrOf(club), roles: club.roles, managerQ: club.manager.tactical ?? 10,
   };
 }
