@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type { Club, Fixture, Game, MatchReport, Message, Meta, Player, Tx } from '../engine/types';
 import { syncPlayerCounter } from '../engine/generator';
-import { migrateToV2, DB_VERSION } from '../engine/migrate';
+import { migrateToV2, migrateToV3, DB_VERSION } from '../engine/migrate';
 import { invalidateIndex } from '../engine/team';
 
 interface MetaRow extends Meta { key: 'meta' }
@@ -34,7 +34,7 @@ class TouchlineDB extends Dexie {
 export const db = new TouchlineDB();
 export const TABLES = () => [db.meta, db.clubs, db.players, db.fixtures, db.messages, db.reports, db.tx, db.kv];
 
-const KV_KEYS = ['leagues', 'history', 'scouting', 'board', 'training', 'events', 'installments'] as const;
+const KV_KEYS = ['leagues', 'history', 'scouting', 'board', 'training', 'events', 'installments', 'cups', 'intl', 'career', 'mgrs', 'news', 'media', 'staffWorld'] as const;
 
 interface Snap {
   players: Map<string, string>; clubs: Map<string, string>; fixtures: Map<string, string>; messages: Map<string, string>;
@@ -136,13 +136,15 @@ export async function loadGame(): Promise<Game | null> {
     tx: tx.sort((a, b) => a.id.localeCompare(b.id)),
     leagues: kvm.leagues, history: kvm.history, scouting: kvm.scouting, board: kvm.board, training: kvm.training,
     events: kvm.events ?? [], installments: kvm.installments ?? [],
+    cups: kvm.cups, intl: kvm.intl, career: kvm.career, mgrs: kvm.mgrs, news: kvm.news, media: kvm.media, staffWorld: kvm.staffWorld,
   } as unknown as Game;
   const maxId = players.reduce((mx, p) => Math.max(mx, parseInt(p.id.slice(1), 10) || 0), 0);
   syncPlayerCounter(maxId);
   invalidateIndex(g);
   if ((g.meta.version ?? 1) < DB_VERSION || !g.leagues) {
-    migrateToV2(g);
-    snap = emptySnap(); // everything is new to the v2 tables: write it all
+    if ((g.meta.version ?? 1) < 2 || !g.leagues) migrateToV2(g);
+    if ((g.meta.version ?? 1) < 3) migrateToV3(g);
+    snap = emptySnap(); // everything is new to the newer tables: write it all
     await saveGame(g);
     return g;
   }

@@ -1,3 +1,4 @@
+import { initPhase3 } from './world3';
 import type { Game, League, Message, Player } from './types';
 import { addLowerClubs, agentFor, makeLeagues, personalityFor, seedNames, setGenDate } from './generator';
 import { LEAGUE_DEFS } from './names';
@@ -13,7 +14,7 @@ import { setSeed, hash01 } from './rng';
 import { addMessage } from './messages';
 import { playFixtures, userRound } from './game';
 
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 /**
  * Upgrades a Phase 1 career (week-based, single league) to Phase 2 in memory.
@@ -86,7 +87,7 @@ export function migrateToV2(g: Game): void {
   g.board.seasonStartBalance = g.clubs[meta.userClubId].balance;
 
   // Catch the lower divisions up to today's date so every league is in step.
-  meta.version = DB_VERSION;
+  meta.version = 2;
   const start = Math.min(g.leagues.L2.startDate, g.leagues.L3.startDate);
   for (let t = start; t < date; t += DAY) playFixtures(g, t, false);
   meta.week = userRound(g);
@@ -100,4 +101,18 @@ export function migrateToV2(g: Game): void {
   });
   void seasonStart;
   void l1def;
+}
+
+/** Phase 2 -> Phase 3: adds cups, international football, managers, staff, economy and news. Nothing existing is changed. */
+export function migrateToV3(g: Game): void {
+  const meta = g.meta;
+  setSeed((meta.seed ?? 1) + 104729);
+  g.news = []; g.media ??= undefined as never;
+  initPhase3(g);
+  meta.version = DB_VERSION;
+  addMessage(g, {
+    category: 'Board', from: 'Touchline', important: true, subject: 'Phase 3 update installed',
+    body: 'Your career has been upgraded and nothing was lost. New: a domestic cup, international football with national managers, advanced tactics and player roles, a manager career with job offers and reputation, staff, stadium and facility construction, a deeper club economy and a news feed.',
+    action: { kind: 'goto', screen: 'home' },
+  });
 }

@@ -33,7 +33,7 @@ const ok = (c: boolean, m: string) => { if (!c) { fails++; console.log('FAIL:', 
 
   const g = (await loadGame())!;
   ok(!!g, 'Phase 1 save loads in Phase 2');
-  ok(g.meta.version === 2, 'save marked as version 2');
+  ok(g.meta.version === 3, 'save marked as version 3');
   ok(g.meta.userClubId === userId, 'same club');
   ok(Object.keys(g.clubs).length === 60 && Object.keys(g.leagues).length === 3, 'lower divisions created');
   ok(g.clubs[userId].balance === p1Balance, 'club balance preserved');
@@ -54,7 +54,7 @@ const ok = (c: boolean, m: string) => { if (!c) { fails++; console.log('FAIL:', 
   // Reload from the now-v2 database: must NOT migrate again
   const msgCount = g.messages.length;
   const g2 = (await loadGame())!;
-  ok(g2.messages.length === msgCount && g2.meta.version === 2, 'second load does not re-migrate');
+  ok(g2.messages.length === msgCount && g2.meta.version === 3, 'second load does not re-migrate');
   ok(JSON.stringify(g2.leagues) === JSON.stringify(g.leagues), 'leagues persisted');
   // Play on: through the end of the season and beyond
   let guard = 0; const s0 = g2.meta.season;
@@ -66,6 +66,7 @@ const ok = (c: boolean, m: string) => { if (!c) { fails++; console.log('FAIL:', 
     if (guard % 20 === 0) await saveGame(g2);
   }
   ok(g2.meta.season === s0 + 1 || g2.meta.sacked === true, 'migrated career plays through to the next season');
+  ok(g2.cups.length >= 1 && !!g2.intl && !!g2.career && g2.news.length > 0 && Object.values(g2.clubs).every((c) => c.econ && c.staff), 'Phase 3 systems present after migration');
   console.log(fails ? `${fails} FAILURES` : 'ALL PASSED');
   process.exit(fails ? 1 : 0);
 })();

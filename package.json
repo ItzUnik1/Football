@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test:engine": "tsx scripts/test-engine.ts",
-    "test": "tsx scripts/test-engine.ts && tsx scripts/test-persistence.ts && tsx scripts/test-migration.ts",
+    "test": "tsx scripts/test-engine.ts && tsx scripts/test-tactics.ts && tsx scripts/test-cups.ts && tsx scripts/test-intl.ts && tsx scripts/test-managers.ts && tsx scripts/test-economy.ts && tsx scripts/test-persistence.ts && tsx scripts/test-migration.ts",
     "test:migration": "tsx scripts/test-migration.ts",
     "test:persistence": "tsx scripts/test-persistence.ts",
     "assets": "python3 scripts/make-assets.py",
