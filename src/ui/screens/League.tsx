@@ -7,18 +7,21 @@ import type { Player } from '../../engine/types';
 export function LeagueScreen() {
   const { g, v } = useStore();
   const me = g!.meta.userClubId;
-  const table = useMemo(() => computeTable(g!), [v]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [lid, setLid] = useState(g!.clubs[g!.meta.userClubId].leagueId ?? 'L1');
+  const lg = g!.leagues[lid];
+  const table = useMemo(() => computeTable(g!, lid), [v, lid]); // eslint-disable-line react-hooks/exhaustive-deps
   const [tab, setTab] = useState<'goals' | 'assists' | 'rating'>('goals');
-  const players = Object.values(g!.players).filter((p) => p.clubId);
+  const ids = new Set(lg.clubIds);
+  const players = Object.values(g!.players).filter((p) => p.clubId && ids.has(p.parentClubId ?? p.clubId));
   const leaders: Player[] = (tab === 'goals'
     ? players.filter((p) => p.stats.goals > 0).sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists)
     : tab === 'assists'
       ? players.filter((p) => p.stats.assists > 0).sort((a, b) => b.stats.assists - a.stats.assists || b.stats.goals - a.stats.goals)
       : players.filter((p) => p.stats.apps >= 5).sort((a, b) => b.stats.ratingSum / b.stats.apps - a.stats.ratingSum / a.stats.apps)).slice(0, 12);
-  const done = g!.meta.week > 38;
+  const done = table.every((r) => r.played >= 38);
   return (
     <div className="h-full flex gap-2 fade-in">
-      <Panel className="flex-1 min-w-0" title={done ? 'Final league table' : 'League table'}>
+      <Panel className="flex-1 min-w-0" title={`${lg.name}${done ? ' - final' : ''}`} right={<div className="flex gap-1">{Object.values(g!.leagues).map((l) => <button key={l.id} className={`btn btn-sm ${lid === l.id ? 'btn-primary' : ''}`} onClick={() => setLid(l.id)}>{l.short}</button>)}</div>}>
         <div className="scroll-y h-full">
           <table className="w-full">
             <thead><tr><th className="th">#</th><th className="th">Club</th>{['P', 'W', 'D', 'L', 'GF', 'GA', 'GD', 'Pts'].map((h) => <th key={h} className="th text-right">{h}</th>)}<th className="th">Form</th></tr></thead>
@@ -27,7 +30,7 @@ export function LeagueScreen() {
                 const c = g!.clubs[r.clubId];
                 return (
                   <tr key={r.clubId} className={`border-t border-line/40 ${r.clubId === me ? 'bg-accent/15 font-semibold' : ''}`}>
-                    <td className="td w-6" style={{ borderLeft: `3px solid ${i < 4 ? '#22c55e' : i >= 17 ? '#ef4444' : 'transparent'}` }}>{i + 1}</td>
+                    <td className="td w-6" style={{ borderLeft: `3px solid ${(lg.tier === 1 ? i < 4 : i < lg.promote) ? '#22c55e' : lg.relegate && i >= table.length - lg.relegate ? '#ef4444' : 'transparent'}` }}>{i + 1}</td>
                     <td className="td"><span className="inline-flex items-center gap-1.5"><Badge club={c} size={18} />{c.name}</span></td>
                     <td className="td text-right">{r.played}</td><td className="td text-right">{r.won}</td><td className="td text-right">{r.drawn}</td><td className="td text-right">{r.lost}</td>
                     <td className="td text-right">{r.gf}</td><td className="td text-right">{r.ga}</td><td className="td text-right">{r.gd > 0 ? `+${r.gd}` : r.gd}</td>

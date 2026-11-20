@@ -29,7 +29,7 @@ export const BENCH_SIZE = 7;
 export const MAX_SQUAD = 28;
 export const MIN_SQUAD = 17;
 
-export const isAvailable = (p: Player): boolean => p.injuredWeeks <= 0 && p.suspended <= 0;
+export const isAvailable = (p: Player): boolean => p.injuredDays <= 0 && p.suspended <= 0;
 
 export function posFit(natural: Pos, slot: Pos): number {
   if (natural === slot) return 1;
@@ -46,11 +46,24 @@ export function condition(p: Player): number {
 
 export const effective = (p: Player, slot?: Pos): number => p.ovr * condition(p) * (slot ? posFit(p.pos, slot) : 1);
 
+/** Senior squad of a club (excludes academy players). Cached per Game; call invalidateIndex after any roster change. */
 export function squadOf(g: Game, clubId: string): Player[] {
-  const out: Player[] = [];
-  for (const id in g.players) { const p = g.players[id]; if (p.clubId === clubId) out.push(p); }
-  return out;
+  if (!g.idx) buildIndex(g);
+  return (g.idx!.get(clubId) ?? []).slice();
 }
+export function buildIndex(g: Game): void {
+  const m = new Map<string, Player[]>();
+  for (const id in g.players) {
+    const p = g.players[id];
+    if (!p.clubId || p.academy) continue;
+    let a = m.get(p.clubId);
+    if (!a) { a = []; m.set(p.clubId, a); }
+    a.push(p);
+  }
+  g.idx = m;
+}
+export const invalidateIndex = (g: Game): void => { g.idx = undefined; };
+export const academyOf = (g: Game, clubId: string): Player[] => Object.values(g.players).filter((p) => p.clubId === clubId && p.academy);
 
 export const wageBill = (g: Game, clubId: string): number => squadOf(g, clubId).reduce((s, p) => s + p.wage, 0);
 
@@ -97,7 +110,7 @@ export function bestLineupScore(pool: Player[], formation: Formation): number {
 
 // Average overall of the club's best XI (for display).
 export function squadStrength(g: Game, clubId: string): number {
-  const pool = squadOf(g, clubId).map((p) => ({ ...p, injuredWeeks: 0, suspended: 0 }));
+  const pool = squadOf(g, clubId).map((p) => ({ ...p, injuredDays: 0, suspended: 0 }));
   const { lineup } = autoLineup(pool, '4-3-3');
   const map = new Map(pool.map((p) => [p.id, p]));
   const xi = lineup.map((id) => map.get(id)).filter(Boolean) as Player[];
@@ -116,7 +129,7 @@ export function validateLineup(g: Game, club: Club): string[] {
     seen.add(id);
     const p = g.players[id];
     if (!p || p.clubId !== club.id) { errs.push('A selected player is no longer at the club.'); return; }
-    if (p.injuredWeeks > 0) errs.push(`${p.name} is injured.`);
+    if (p.injuredDays > 0) errs.push(`${p.name} is injured.`);
     if (p.suspended > 0) errs.push(`${p.name} is suspended.`);
   });
   const gk = g.players[club.lineup[0]];

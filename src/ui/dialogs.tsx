@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { store, useStore } from './store';
 import { Badge, Modal, Ovr, PosTag } from './common';
-import type { Player } from '../engine/types';
+import type { Player, SquadRole } from '../engine/types';
+import { scoutedView } from '../engine/scouting';
 import { fmtMoney } from '../engine/valuation';
-import { askingPrice, contractDemand, interestedClubs, isWindowOpen, loanFeeFor, maxYears, negotiateBid, negotiateRenewal, proposeSale } from '../engine/transfers';
+import { ROLE_LABEL, agentFeeFor, askingPrice, bestRoleAt, contractDemand, interestedClubs, isWindowOpen, loanFeeFor, maxYears, negotiateBid, negotiateRenewal, proposeSale, rivalsFor, type Deal } from '../engine/transfers';
 import { wageBill } from '../engine/team';
+import { fmtDate } from '../engine/calendar';
 
 function MoneyInput({ label, value, onChange, step, min = 0 }: { label: string; value: number; onChange: (n: number) => void; step: number; min?: number }) {
   return (
@@ -27,61 +29,98 @@ function Banner({ tone, children }: { tone: 'ok' | 'bad' | 'info'; children: Rea
 }
 
 // ---------- Buying a player ----------
+const ROLES: SquadRole[] = ['key', 'first', 'rotation', 'prospect'];
+const Sel = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <label className="block"><div className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">{label}</div>{children}</label>
+);
+const selCls = 'w-full bg-black/40 border border-line rounded px-2 py-1.5';
+
 export function BidDialog({ player, onClose }: { player: Player; onClose: () => void }) {
   const { g } = useStore();
   const me = g!.clubs[g!.meta.userClubId];
   const free = !player.clubId;
   const ask = free ? 0 : askingPrice(g!, player);
   const [kind, setKind] = useState<'permanent' | 'loan'>('permanent');
-  const demand = contractDemand(player, me);
+  const defRole = bestRoleAt(g!, player, me);
+  const demand = contractDemand(player, me, defRole);
   const [fee, setFee] = useState(ask);
   const [wage, setWage] = useState(demand);
   const [years, setYears] = useState(Math.min(3, maxYears(player)));
+  const [inst, setInst] = useState(1);
+  const [sellOn, setSellOn] = useState(0);
+  const [role, setRole] = useState<SquadRole>(defRole);
+  const [opt, setOpt] = useState<'none' | 'option' | 'obligation'>('none');
+  const [optFee, setOptFee] = useState(player.value);
   const [msg, setMsg] = useState<{ text: string; tone: 'ok' | 'bad' | 'info' } | null>(null);
   const [counter, setCounter] = useState<{ fee?: number; wage?: number } | null>(null);
   const loanFee = loanFeeFor(player);
-  const open = isWindowOpen(g!.meta.week);
+  const open = isWindowOpen(g!.meta.date!);
+  const agent = kind === 'permanent' ? agentFeeFor(player, wage, years) : 0;
+  const rivals = rivalsFor(g!, player, me);
+  const scouted = scoutedView(g!, player);
+  const clause = player.releaseClause;
 
+  const deal = (): Deal => ({ playerId: player.id, buyerId: me.id, fee, wage, years, kind, instalments: kind === 'permanent' ? inst : 1, sellOn: kind === 'permanent' ? sellOn : 0, role, loanOption: kind === 'loan' && opt !== 'none' ? { fee: optFee, obligatory: opt === 'obligation' } : undefined });
   const submit = async () => {
-    const res = await store.mutate((gg) => negotiateBid(gg, { playerId: player.id, buyerId: me.id, fee, wage, years, kind }));
-    if (res.done) { store.toast(res.message); onClose(); return; }
+    const res = await store.mutate((gg) => negotiateBid(gg, deal()));
+    if (res.done) { store.toast(res.message, res.lostToRival ? 'bad' : 'ok'); onClose(); return; }
     setMsg({ text: res.message || res.errors[0] || 'No deal.', tone: res.errors.length || res.feeStatus === 'rejected' || res.wageStatus === 'rejected' ? 'bad' : 'info' });
     setCounter(res.feeStatus === 'countered' || res.wageStatus === 'countered' ? { fee: res.counterFee, wage: res.counterWage } : null);
   };
 
   return (
-    <Modal title={<span>Make an offer - {player.name}</span>} onClose={onClose}
+    <Modal wide title={<span>Negotiate - {player.name}</span>} onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={!open} onClick={submit}>{kind === 'loan' ? 'Propose loan' : 'Submit offer'}</button></>}>
       <div className="flex items-center gap-2 mb-2">
         <PosTag pos={player.pos} /><Ovr v={player.ovr} />
         <div className="flex-1 min-w-0"><div className="font-semibold truncate">{player.name}</div>
-          <div className="text-[11px] text-slate-400">{player.age}y - {player.nat} - {free ? 'Free agent' : g!.clubs[player.clubId!].name}</div></div>
+          <div className="text-[11px] text-slate-400">{player.age}y - {player.nat} - {free ? 'Free agent' : g!.clubs[player.clubId!].name} - Potential {scouted.pot} - Agent {player.agent?.name ?? '-'}</div></div>
+        {rivals.length > 0 && <span className="text-[10px] bg-warn text-black rounded px-1.5 py-0.5 font-bold">{rivals.length} rival club{rivals.length > 1 ? 's' : ''} interested</span>}
       </div>
       {!open && <Banner tone="bad">The transfer window is closed.</Banner>}
-      <div className="grid grid-cols-3 gap-2 text-[11px] my-2">
-        <div className="panel p-1.5"><div className="text-slate-400">Market value</div><b>{fmtMoney(player.value)}</b></div>
+      <div className="grid grid-cols-4 gap-2 text-[11px] my-2">
+        <div className="panel p-1.5"><div className="text-slate-400">Market value</div><b>{scouted.value}</b></div>
         <div className="panel p-1.5"><div className="text-slate-400">{free ? 'Fee' : 'Asking price'}</div><b>{free ? 'Free' : fmtMoney(ask)}</b></div>
         <div className="panel p-1.5"><div className="text-slate-400">Wage demand</div><b>{fmtMoney(demand)}/wk</b></div>
+        <div className="panel p-1.5"><div className="text-slate-400">Release clause</div><b>{clause ? fmtMoney(clause) : 'None'}</b></div>
         <div className="panel p-1.5"><div className="text-slate-400">Transfer budget</div><b>{fmtMoney(me.transferBudget)}</b></div>
         <div className="panel p-1.5"><div className="text-slate-400">Wage room</div><b>{fmtMoney(Math.max(0, me.wageBudget - wageBill(g!, me.id)))}/wk</b></div>
-        <div className="panel p-1.5"><div className="text-slate-400">Current wage</div><b>{fmtMoney(player.wage)}/wk</b></div>
+        <div className="panel p-1.5"><div className="text-slate-400">Agent fee</div><b>{kind === 'permanent' ? fmtMoney(agent) : '-'}</b></div>
+        <div className="panel p-1.5"><div className="text-slate-400">Likely role</div><b>{ROLE_LABEL[defRole]}</b></div>
       </div>
       {!free && (
         <div className="flex gap-1 mb-2">
           <button className={`btn btn-sm flex-1 ${kind === 'permanent' ? 'btn-primary' : ''}`} onClick={() => { setKind('permanent'); setFee(ask); }}>Permanent transfer</button>
           <button className={`btn btn-sm flex-1 ${kind === 'loan' ? 'btn-primary' : ''}`} onClick={() => { setKind('loan'); setFee(loanFee); }}>Loan until end of season</button>
+          {clause && kind === 'permanent' && <button className="btn btn-sm" onClick={() => setFee(clause)}>Pay release clause</button>}
         </div>
       )}
       <div className="grid grid-cols-3 gap-2">
         {free ? <div className="text-xs text-slate-400 self-center">No fee - free agent.</div> : <MoneyInput label={kind === 'loan' ? 'Loan fee' : 'Transfer fee'} value={fee} onChange={setFee} step={kind === 'loan' ? 25000 : 250000} />}
         {kind === 'permanent' ? <MoneyInput label="Wage per week" value={wage} onChange={setWage} step={500} /> : <div className="text-xs text-slate-400 self-center">You pay his current wage ({fmtMoney(player.wage)}/wk).</div>}
         {kind === 'permanent' && (
-          <label className="block"><div className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Contract</div>
-            <select className="w-full bg-black/40 border border-line rounded px-2 py-1.5" value={years} onChange={(e) => setYears(parseInt(e.target.value, 10))}>
-              {Array.from({ length: maxYears(player) }, (_, i) => i + 1).map((y) => <option key={y} value={y}>{y} year{y > 1 ? 's' : ''}</option>)}
-            </select></label>
+          <Sel label="Contract length"><select className={selCls} value={years} onChange={(e) => setYears(parseInt(e.target.value, 10))}>
+            {Array.from({ length: maxYears(player) }, (_, i) => i + 1).map((y) => <option key={y} value={y}>{y} year{y > 1 ? 's' : ''}</option>)}</select></Sel>
         )}
+        {kind === 'permanent' && !free && (
+          <Sel label="Payment"><select className={selCls} value={inst} onChange={(e) => setInst(parseInt(e.target.value, 10))}>
+            <option value={1}>Up front</option><option value={2}>2 yearly instalments</option><option value={3}>3 yearly instalments</option></select></Sel>
+        )}
+        {kind === 'permanent' && !free && (
+          <Sel label="Sell-on clause"><select className={selCls} value={sellOn} onChange={(e) => setSellOn(parseInt(e.target.value, 10))}>
+            {[0, 5, 10, 15, 20, 30].map((n) => <option key={n} value={n}>{n === 0 ? 'None' : `${n}% to seller`}</option>)}</select></Sel>
+        )}
+        {kind === 'permanent' && (
+          <Sel label="Promised role"><select className={selCls} value={role} onChange={(e) => setRole(e.target.value as SquadRole)}>
+            {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</select></Sel>
+        )}
+        {kind === 'loan' && (
+          <Sel label="Purchase clause"><select className={selCls} value={opt} onChange={(e) => setOpt(e.target.value as typeof opt)}>
+            <option value="none">None</option><option value="option">Option to buy</option><option value="obligation">Obligation to buy</option></select></Sel>
+        )}
+        {kind === 'loan' && opt !== 'none' && <MoneyInput label="Purchase price" value={optFee} onChange={setOptFee} step={250000} />}
       </div>
+      {kind === 'permanent' && (inst > 1 || sellOn > 0) && <div className="text-[10px] text-slate-400 mt-1">Instalments cost the seller a premium; a sell-on clause lowers the fee they require. The first payment comes out of your transfer budget now.</div>}
       {msg && <div className="mt-2"><Banner tone={msg.tone}>{msg.text}</Banner></div>}
       {counter && (
         <div className="mt-2 flex gap-2">
@@ -103,7 +142,7 @@ export function SaleDialog({ player, onClose }: { player: Player; onClose: () =>
   const [fee, setFee] = useState(sel?.estimate ?? player.value);
   const [msg, setMsg] = useState<{ text: string; tone: 'ok' | 'bad' | 'info' } | null>(null);
   const [counter, setCounter] = useState<number | null>(null);
-  const open = isWindowOpen(g!.meta.week);
+  const open = isWindowOpen(g!.meta.date!);
 
   const pick = (id: string) => { setClubId(id); const i = interested.find((x) => x.clubId === id); if (i) setFee(kind === 'loan' ? loanFeeFor(player) : i.estimate); setMsg(null); setCounter(null); };
   const submit = async () => {
@@ -154,8 +193,10 @@ export function RenewDialog({ player, onClose }: { player: Player; onClose: () =
   const [years, setYears] = useState(Math.min(3, maxYears(player)));
   const [msg, setMsg] = useState<{ text: string; tone: 'ok' | 'bad' | 'info' } | null>(null);
   const [counter, setCounter] = useState<number | null>(null);
+  const [role, setRole] = useState<SquadRole>(player.role ?? 'first');
+  const [clause, setClause] = useState(player.releaseClause ?? 0);
   const submit = async () => {
-    const r = await store.mutate((gg) => negotiateRenewal(gg, player.id, wage, years));
+    const r = await store.mutate((gg) => negotiateRenewal(gg, player.id, wage, years, { role, releaseClause: clause > 0 ? clause : null }));
     if (r.done) { store.toast(r.message); onClose(); return; }
     setMsg({ text: r.message, tone: r.status === 'countered' ? 'info' : 'bad' });
     setCounter(r.status === 'countered' ? r.counterWage ?? null : null);
@@ -165,7 +206,7 @@ export function RenewDialog({ player, onClose }: { player: Player; onClose: () =
       footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={submit}>Offer contract</button></>}>
       <div className="grid grid-cols-3 gap-2 text-[11px] mb-2">
         <div className="panel p-1.5"><div className="text-slate-400">Current wage</div><b>{fmtMoney(player.wage)}/wk</b></div>
-        <div className="panel p-1.5"><div className="text-slate-400">Contract left</div><b>{player.contractYears} yr</b></div>
+        <div className="panel p-1.5"><div className="text-slate-400">Contract left</div><b>{player.contractEnd ? fmtDate(player.contractEnd) : `${player.contractYears} yr`}</b></div>
         <div className="panel p-1.5"><div className="text-slate-400">Morale</div><b>{Math.round(player.morale)}</b></div>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -175,6 +216,11 @@ export function RenewDialog({ player, onClose }: { player: Player; onClose: () =
             {Array.from({ length: maxYears(player) }, (_, i) => i + 1).map((y) => <option key={y} value={y}>{y} year{y > 1 ? 's' : ''}</option>)}
           </select></label>
       </div>
+      <div className="grid grid-cols-2 gap-2 mt-2">
+        <Sel label="Promised role"><select className={selCls} value={role} onChange={(e) => setRole(e.target.value as SquadRole)}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</select></Sel>
+        <MoneyInput label="Release clause (0 = none)" value={clause} onChange={setClause} step={1000000} />
+      </div>
+      {player.wantsMove && <div className="mt-2"><Banner tone="bad">{player.name} wants to leave and will demand more.</Banner></div>}
       {msg && <div className="mt-2"><Banner tone={msg.tone}>{msg.text}</Banner></div>}
       {counter !== null && <button className="btn btn-sm mt-2" onClick={() => { setWage(counter); setCounter(null); }}>Accept {fmtMoney(counter)}/wk</button>}
     </Modal>

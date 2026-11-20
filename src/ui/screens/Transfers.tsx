@@ -5,6 +5,8 @@ import type { Pos } from '../../engine/types';
 import { fmtMoney } from '../../engine/valuation';
 import { askingPrice, isWindowOpen, windowLabel } from '../../engine/transfers';
 import { squadOf } from '../../engine/team';
+import { scoutedView } from '../../engine/scouting';
+import { fmtDateShort } from '../../engine/calendar';
 
 type Tab = 'search' | 'free' | 'mine' | 'history';
 type SortKey = 'ovr' | 'value' | 'age' | 'pot' | 'wage';
@@ -20,7 +22,7 @@ export function TransfersScreen() {
   const [clubF, setClubF] = useState('ALL');
   const [maxFee, setMaxFee] = useState(0);
   const [sort, setSort] = useState<SortKey>('ovr');
-  const open = isWindowOpen(g!.meta.week);
+  const open = isWindowOpen(g!.meta.date!);
 
   const results = useMemo(() => {
     const free = tab === 'free';
@@ -45,7 +47,7 @@ export function TransfersScreen() {
   return (
     <div className="h-full flex flex-col gap-2 fade-in">
       <div className={`shrink-0 flex items-center gap-3 px-2 py-1 rounded border text-[11px] ${open ? 'border-accent/50 bg-accent/10 text-accent' : 'border-warn/50 bg-warn/10 text-warn'}`}>
-        <b>{open ? 'WINDOW OPEN' : 'WINDOW CLOSED'}</b><span className="flex-1">{windowLabel(g!.meta.week)}</span>
+        <b>{open ? 'WINDOW OPEN' : 'WINDOW CLOSED'}</b><span className="flex-1">{windowLabel(g!.meta.date!)}</span>
         <span className="text-slate-300">Budget <b>{fmtMoney(me.transferBudget)}</b></span>
         <button className="underline text-slate-300" onClick={() => store.go('finances')}>Finances</button>
       </div>
@@ -88,7 +90,7 @@ export function TransfersScreen() {
                       <td className="td font-semibold">{p.name}</td>
                       <td className="td">{p.age}</td>
                       <td className="td"><Ovr v={p.ovr} /></td>
-                      <td className="td text-slate-400">{p.pot}</td>
+                      <td className="td text-slate-400">{scoutedView(g!, p).pot}</td>
                       <td className="td">{p.clubId ? <span className="inline-flex items-center gap-1"><Badge club={g!.clubs[p.clubId]} size={14} />{g!.clubs[p.clubId].short}</span> : <span className="text-warn">Free</span>}</td>
                       <td className="td text-right">{fmtMoney(p.value)}</td>
                       <td className="td text-right">{p.clubId ? fmtMoney(askingPrice(g!, p)) : 'Free'}</td>
@@ -115,7 +117,7 @@ export function TransfersScreen() {
                     <tr key={p.id} className="border-t border-line/40 active:bg-panel2" onClick={() => store.openProfile(p.id)}>
                       <td className="td"><PosTag pos={p.pos} /></td><td className="td font-semibold">{p.name}</td><td className="td">{p.age}</td><td className="td"><Ovr v={p.ovr} /></td>
                       <td className="td">{st ? <span style={{ color: st.color }}>{st.text}</span> : p.listed ? <span className="text-accent2">Listed</span> : p.loanListed ? <span className="text-accent2">Loan listed</span> : ''}</td>
-                      <td className="td text-right">{fmtMoney(p.value)}</td><td className="td text-right">{fmtMoney(p.wage)}</td><td className="td">{p.contractYears}y</td>
+                      <td className="td text-right">{fmtMoney(p.value)}</td><td className="td text-right">{fmtMoney(p.wage)}</td><td className="td">{p.contractEnd ? new Date(p.contractEnd).getUTCFullYear() : p.contractYears + 'y'}</td>
                     </tr>
                   );
                 })}
@@ -140,7 +142,7 @@ export function TransfersScreen() {
             <div className="scroll-y h-full">
               {moves.length === 0 ? <div className="p-3 text-slate-500 text-center">No transfers yet.</div> : moves.map((t) => (
                 <div key={t.id} className="flex items-center gap-2 px-2 py-1 border-b border-line/40">
-                  <span className="text-[10px] text-slate-500 w-8">MD{t.week}</span>
+                  <span className="text-[10px] text-slate-500 w-12">{t.date ? fmtDateShort(t.date) : `MD${t.week}`}</span>
                   <span className="flex-1 truncate">{t.desc}</span>
                   <b className={t.amount > 0 ? 'text-accent' : t.amount < 0 ? 'text-bad' : 'text-slate-400'}>{t.amount === 0 ? '-' : fmtMoney(t.amount)}</b>
                 </div>

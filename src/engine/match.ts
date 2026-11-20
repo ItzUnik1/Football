@@ -12,6 +12,8 @@ export interface TeamSheet {
   bench: Player[];
   captainId: string;
   home: boolean;
+  familiarity?: number; // tactical familiarity 0..100
+  medical?: number; // medical level 1..5 (shorter injuries)
 }
 
 interface Live {
@@ -85,11 +87,13 @@ function pickAssister(s: Side, not: Live): Live | null {
   return weighted(on, (l) => ({ FW: 2.4, MF: 3, DF: 1, GK: 0 }[l.slot]) * (l.p.tech.passing * 0.5 + l.p.mental.vision * 0.5) / 60);
 }
 
-export function simulateMatch(home: TeamSheet, away: TeamSheet, fixtureId: string, week: number): MatchReport {
+export function simulateMatch(home: TeamSheet, away: TeamSheet, fixtureId: string, week: number, date?: number, leagueId?: string): MatchReport {
   const mkSide = (sheet: TeamSheet, key: 'home' | 'away'): Side => {
     const slots = FORMATIONS[sheet.formation];
-    const live = sheet.xi.map((p, i) => mkLive(p, slots[i].pos, true));
-    const bench = sheet.bench.map((p) => mkLive(p, p.pos, false));
+    const fam = 0.97 + 0.03 * ((sheet.familiarity ?? 60) / 100);
+    const tune = (l: Live): Live => { l.att *= fam; l.cre *= fam; l.def *= fam; return l; };
+    const live = sheet.xi.map((p, i) => tune(mkLive(p, slots[i].pos, true)));
+    const bench = sheet.bench.map((p) => tune(mkLive(p, p.pos, false)));
     return { sheet, key, live, bench, subs: 0, reds: 0, poss: 0, stats: emptyStats(), lines: { atk: 50, mid: 50, def: 50, gk: 50 }, dirty: true };
   };
   const H = mkSide(home, 'home');
@@ -107,7 +111,7 @@ export function simulateMatch(home: TeamSheet, away: TeamSheet, fixtureId: strin
 
   const substitute = (s: Side, out: Live, minute: number, reason: string): boolean => {
     if (s.subs >= 5) return false;
-    const cands = s.bench.filter((b) => !b.on && b.to === 90 && b.p.injuredWeeks <= 0 && b.p.suspended <= 0 && !b.red);
+    const cands = s.bench.filter((b) => !b.on && b.to === 90 && b.p.injuredDays <= 0 && b.p.suspended <= 0 && !b.red);
     if (!cands.length) return false;
     const grp = out.slot;
     const sameGroup = cands.filter((b) => b.p.pos === grp);
@@ -222,10 +226,12 @@ export function simulateMatch(home: TeamSheet, away: TeamSheet, fixtureId: strin
       if (chance(0.0018)) {
         const victim = weighted(s.live.filter((l) => l.on), (l) => 110 - l.p.fitness);
         const r = rand();
-        const weeks = r < 0.7 ? randInt(1, 3) : r < 0.95 ? randInt(4, 8) : randInt(9, 20);
+        const med = 1 - ((s.sheet.medical ?? 3) - 3) * 0.06;
+        const weeks = Math.max(1, Math.round((r < 0.7 ? randInt(1, 3) : r < 0.95 ? randInt(4, 8) : randInt(9, 20)) * med));
+        const days = Math.max(3, Math.round(weeks * 7 * (0.8 + rand() * 0.4)));
         const label = weeks <= 2 ? pick(['Knock', 'Muscle strain', 'Bruised ankle']) : weeks <= 8 ? pick(['Hamstring injury', 'Ankle sprain', 'Calf strain']) : pick(['Knee ligament injury', 'Broken metatarsal', 'Torn hamstring']);
         victim.on = false; victim.to = minute; s.dirty = true;
-        injuries.push({ playerId: victim.p.id, weeks, injury: label });
+        injuries.push({ playerId: victim.p.id, weeks, days, injury: label });
         pushEvent({ min: minute, type: 'injury', team: s.key, playerId: victim.p.id, player: victim.p.name, detail: label });
         substitute(s, victim, minute, 'injury');
       }
@@ -293,7 +299,7 @@ export function simulateMatch(home: TeamSheet, away: TeamSheet, fixtureId: strin
   const motm = players.reduce((b, p) => (p.rating > b.rating ? p : b), players[0]);
 
   const report: MatchReport = {
-    fixtureId, week, homeId: home.clubId, awayId: away.clubId, homeName: home.name, awayName: away.name,
+    fixtureId, week, date, leagueId, homeId: home.clubId, awayId: away.clubId, homeName: home.name, awayName: away.name,
     hg, ag, events, stats: { home: H.stats, away: A.stats }, players, motm: motm?.id ?? '',
     analysis: [], injuries, bans,
   };

@@ -1,14 +1,29 @@
 import { useSyncExternalStore } from 'react';
-import type { Club, Game, Player } from '../engine/types';
+import type { Club, Game, League, Player } from '../engine/types';
 import { deleteSave, hasSave, loadGame, saveGame } from '../db/database';
 import { newCareer } from '../engine/game';
 
-export type Screen = 'dashboard' | 'squad' | 'tactics' | 'fixtures' | 'league' | 'transfers' | 'finances' | 'inbox' | 'club';
+export type Screen =
+  | 'inbox' | 'home' | 'calendar'
+  | 'squad' | 'tactics' | 'training' | 'medical' | 'academy'
+  | 'league' | 'fixtures' | 'stats'
+  | 'transfers' | 'scouting'
+  | 'club' | 'board' | 'finances' | 'history';
+
+/** Maps ids used by messages / older code onto real screens. */
+export const normalizeScreen = (s: string): Screen => {
+  const m: Record<string, Screen> = { dashboard: 'home', match: 'home', negotiations: 'transfers' };
+  return (m[s] ?? s) as Screen;
+};
 
 export interface UiState {
   phase: 'loading' | 'start' | 'select' | 'game';
   screen: Screen;
   profileId?: string;
+  selectedMessageId?: string;
+  advanceMenu?: boolean;
+  newSeason?: boolean;
+  calMonth?: number;
   reportId?: string;
   toast?: { text: string; kind: 'ok' | 'bad'; id: number };
   hasSave: boolean;
@@ -17,7 +32,7 @@ export interface UiState {
 
 class Store {
   game: Game | null = null;
-  ui: UiState = { phase: 'loading', screen: 'dashboard', hasSave: false, saving: false };
+  ui: UiState = { phase: 'loading', screen: 'inbox', hasSave: false, saving: false };
   private v = 0;
   private listeners = new Set<() => void>();
   private toastId = 0;
@@ -37,7 +52,8 @@ class Store {
   }
 
   setUi(p: Partial<UiState>) { this.ui = { ...this.ui, ...p }; this.emit(); }
-  go(screen: Screen, profileId?: string) { this.ui = { ...this.ui, screen, profileId }; this.emit(); }
+  go(screen: Screen | string, profileId?: string) { this.ui = { ...this.ui, screen: normalizeScreen(screen), profileId }; this.emit(); }
+  selectMessage(id?: string) { this.ui = { ...this.ui, selectedMessageId: id }; this.emit(); }
   openProfile(id?: string) { this.ui = { ...this.ui, profileId: id }; this.emit(); }
   openReport(id?: string) { this.ui = { ...this.ui, reportId: id }; this.emit(); }
   toast(text: string, kind: 'ok' | 'bad' = 'ok') {
@@ -52,16 +68,16 @@ class Store {
     const g = await loadGame();
     if (!g) { this.setUi({ phase: 'start', hasSave: false }); return; }
     this.game = g;
-    this.ui = { ...this.ui, phase: 'game', screen: 'dashboard', hasSave: true };
+    this.ui = { ...this.ui, phase: 'game', screen: 'inbox', hasSave: true };
     this.emit();
   }
 
-  async startCareer(clubId: string, world?: { clubs: Record<string, Club>; players: Record<string, Player> }) {
+  async startCareer(clubId: string, world?: { clubs: Record<string, Club>; players: Record<string, Player>; leagues?: Record<string, League> }) {
     this.setUi({ phase: 'loading' });
     await deleteSave();
     this.game = newCareer(clubId, undefined, world);
     await saveGame(this.game);
-    this.ui = { ...this.ui, phase: 'game', screen: 'dashboard', hasSave: true };
+    this.ui = { ...this.ui, phase: 'game', screen: 'inbox', hasSave: true };
     this.emit();
   }
 
@@ -72,7 +88,7 @@ class Store {
 
   async quitToMenu() {
     this.game = null;
-    this.ui = { ...this.ui, phase: 'start', hasSave: await hasSave(), screen: 'dashboard' };
+    this.ui = { ...this.ui, phase: 'start', hasSave: await hasSave(), screen: 'inbox' };
     this.emit();
   }
 

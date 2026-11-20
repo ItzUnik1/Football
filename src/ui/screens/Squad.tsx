@@ -6,6 +6,10 @@ import { fmtMoney } from '../../engine/valuation';
 import { squadOf } from '../../engine/team';
 import { askingPrice, isWindowOpen, setListed } from '../../engine/transfers';
 import { BidDialog, RenewDialog, SaleDialog } from '../dialogs';
+import { roleOf } from '../../engine/development';
+import { ROLE_LABEL } from '../../engine/transfers';
+import { scoutedView, toggleShortlist } from '../../engine/scouting';
+import { fmtDate, seasonLabel } from '../../engine/calendar';
 
 type SortKey = 'pos' | 'name' | 'age' | 'ovr' | 'pot' | 'fitness' | 'morale' | 'contract' | 'value' | 'apps' | 'goals';
 const POS_ORDER: Record<Pos, number> = { GK: 0, DF: 1, MF: 2, FW: 3 };
@@ -36,7 +40,7 @@ export function SquadScreen() {
   const th = (k: SortKey, label: string, cls = '') => (
     <th className={`th cursor-pointer ${cls}`} onClick={() => setSort((s) => ({ key: k, dir: s.key === k ? (s.dir === 1 ? -1 : 1) : k === 'name' || k === 'pos' ? 1 : -1 }))}>{label}{sort.key === k ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}</th>
   );
-  const injured = squad.filter((p) => p.injuredWeeks > 0).length;
+  const injured = squad.filter((p) => p.injuredDays > 0).length;
   const avgAge = squad.reduce((s, p) => s + p.age, 0) / squad.length;
   const bill = squad.reduce((s, p) => s + p.wage, 0);
 
@@ -77,7 +81,7 @@ export function SquadScreen() {
                     <td className="td">
                       {st ? <span style={{ color: st.color }} className="font-semibold">{st.text}</span> : inXI.has(p.id) ? <span className="text-accent font-semibold">XI</span> : inBench.has(p.id) ? <span className="text-accent2 font-semibold">SUB</span> : <span className="text-slate-500">-</span>}
                     </td>
-                    <td className="td">{p.contractYears}y</td>
+                    <td className="td">{p.contractEnd ? new Date(p.contractEnd).getUTCFullYear() : p.contractYears + 'y'}</td>
                     <td className="td">{fmtMoney(p.value)}</td>
                     <td className="td">{p.stats.apps}</td>
                     <td className="td">{p.stats.goals}</td>
@@ -112,7 +116,10 @@ export function PlayerProfile({ playerId, onClose }: { playerId: string; onClose
   const club = p.clubId ? g!.clubs[p.clubId] : null;
   const st = statusOf(p);
   const avg = p.stats.apps ? (p.stats.ratingSum / p.stats.apps).toFixed(2) : '-';
-  const window = isWindowOpen(g!.meta.week);
+  const window = isWindowOpen(g!.meta.date!);
+  const sv = scoutedView(g!, p);
+  const per = p.personality;
+  const lvl = (n: number) => (n >= 16 ? 'Very high' : n >= 12 ? 'High' : n >= 8 ? 'Average' : 'Low');
   const attr = p.pos === 'GK'
     ? { tech: [['Handling', p.tech.handling], ['Passing', p.tech.passing]], phys: [['Jumping', p.phys.jumping], ['Strength', p.phys.strength], ['Pace', p.phys.pace], ['Stamina', p.phys.stamina]], mental: [['Positioning', p.mental.positioning], ['Composure', p.mental.composure], ['Vision', p.mental.vision]] }
     : { tech: [['Passing', p.tech.passing], ['Dribbling', p.tech.dribbling], ['Shooting', p.tech.shooting], ['Finishing', p.tech.finishing], ['Tackling', p.tech.tackling]], phys: [['Pace', p.phys.pace], ['Stamina', p.phys.stamina], ['Strength', p.phys.strength], ['Jumping', p.phys.jumping]], mental: [['Vision', p.mental.vision], ['Composure', p.mental.composure], ['Positioning', p.mental.positioning], ['Work rate', p.mental.workrate]] };
@@ -137,7 +144,7 @@ export function PlayerProfile({ playerId, onClose }: { playerId: string; onClose
             <div className="panel p-2 text-center mb-2">
               <div className="flex justify-center gap-1 mb-1"><PosTag pos={p.pos} /></div>
               <div className="text-3xl font-extrabold leading-none"><Ovr v={p.ovr} /></div>
-              <div className="text-[10px] text-slate-400 mt-1">Potential {p.pot}</div>
+              <div className="text-[10px] text-slate-400 mt-1">Potential {sv.pot}</div>
               <div className="text-[11px] mt-1">{p.age} years - {p.nat}</div>
               {club && <div className="text-[11px] text-slate-400">{club.name}{p.parentClubId ? ` (loan from ${g!.clubs[p.parentClubId].name})` : ''}</div>}
               {!club && <div className="text-[11px] text-warn">Free agent</div>}
@@ -154,15 +161,27 @@ export function PlayerProfile({ playerId, onClose }: { playerId: string; onClose
           <div className="space-y-2">
             <div><div className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">Mental</div>{attr.mental.map(([l, v]) => <AttrRow key={l as string} label={l as string} v={v as number} />)}</div>
             <div className="panel grid grid-cols-2">
-              <Stat label="Value" value={fmtMoney(p.value)} />
+              <Stat label="Value" value={sv.value} />
               <Stat label="Wage" value={`${fmtMoney(p.wage)}/wk`} />
-              <Stat label="Contract" value={p.clubId ? `${p.contractYears} yr` : 'None'} />
+              <Stat label="Contract" value={p.clubId && p.contractEnd ? `to ${fmtDate(p.contractEnd)}` : 'None'} sub={p.releaseClause && !p.academy ? `Release clause ${fmtMoney(p.releaseClause)}` : undefined} />
               <Stat label={mine ? 'Ask price' : 'Asking'} value={p.clubId ? fmtMoney(askingPrice(g!, p)) : 'Free'} />
             </div>
             <div className="panel grid grid-cols-4 text-center">
               <Stat label="Apps" value={p.stats.apps} /><Stat label="Goals" value={p.stats.goals} /><Stat label="Assists" value={p.stats.assists} /><Stat label="Avg" value={avg} />
             </div>
-            {p.injuredWeeks > 0 && <div className="text-bad text-xs">{p.injury} - out for {p.injuredWeeks} match(es)</div>}
+            {p.injuredDays > 0 && <div className="text-bad text-xs">{p.injury} - out for {p.injuredDays} days (back {fmtDate((g!.meta.date ?? 0) + p.injuredDays * 86400000)})</div>}
+            {per && (mine || sv.exact || sv.stars) && (
+              <div className="panel p-1.5 text-[11px] grid grid-cols-2 gap-x-3">
+                <div className="col-span-2 text-[10px] uppercase tracking-wider text-slate-400">Personality{mine ? ` - ${ROLE_LABEL[roleOf(g!, p)]}` : ''}</div>
+                <span>Professionalism <b>{lvl(per.professionalism)}</b></span><span>Ambition <b>{lvl(per.ambition)}</b></span>
+                <span>Loyalty <b>{lvl(per.loyalty)}</b></span><span>Leadership <b>{lvl(per.leadership)}</b></span>
+                <span>Adaptability <b>{lvl(per.adaptability)}</b></span>{p.agent && <span>Agent <b>{p.agent.name}</b></span>}
+              </div>)}
+            {p.career && p.career.seasons.length > 0 && (
+              <div className="panel p-1.5 text-[11px]"><div className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Career ({p.career.apps} apps, {p.career.goals} goals)</div>
+                {p.career.seasons.slice(-4).map((x) => <div key={x.season} className="flex justify-between"><span>{seasonLabel(x.season)} {g!.clubs[x.clubId]?.short ?? ''}</span><span>{x.apps} apps - {x.goals}G {x.assists}A - {x.avgRating.toFixed(1)}</span></div>)}</div>)}
+            {mine && p.injuries && p.injuries.length > 0 && <div className="text-[10px] text-slate-400">Injury history: {p.injuries.slice(-3).map((i) => `${i.type} (${i.days}d)`).join(', ')}</div>}
+            {!mine && <button className="btn btn-sm" onClick={() => store.mutate((gg) => toggleShortlist(gg, p.id))}>{g!.scouting.shortlist.includes(p.id) ? '★ On shortlist' : '☆ Add to shortlist'}</button>}
             {!mine && !window && p.clubId && <div className="text-[11px] text-warn">Transfer window closed.</div>}
           </div>
         </div>

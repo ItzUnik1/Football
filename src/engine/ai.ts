@@ -1,6 +1,7 @@
 import type { Game, Player, Pos } from './types';
-import { MAX_SQUAD, squadOf, wageBill } from './team';
-import { addMessage } from './messages';
+import { MAX_SQUAD, invalidateIndex, squadOf, wageBill } from './team';
+import { addMessage, gameNow } from './messages';
+import { addDays, daysToDeadline, contractEndFor } from './calendar';
 import { askingPrice, aiValuation, contractDemand, executeDeal, interestedClubs, isWindowOpen, loanFeeFor, maxYears, ownerOf, validateDeal } from './transfers';
 import { chance, pick, rand, randInt, shuffle } from './rng';
 import { fmtMoney, valueOf, wageFor } from './valuation';
@@ -19,17 +20,22 @@ export function releaseToFreeAgents(g: Game, p: Player): void {
     club.lineup = club.lineup.map((id) => (id === p.id ? '' : id));
     club.bench = club.bench.filter((id) => id !== p.id);
   }
-  p.clubId = null; p.parentClubId = undefined; p.contractYears = 0;
+  p.clubId = null; p.parentClubId = undefined; p.contractYears = 0; p.contractEnd = undefined; p.loanOption = undefined;
+  invalidateIndex(g);
   p.value = valueOf(p.ovr, p.age, p.pot, 0);
 }
 
 // One round of AI transfer activity. Only called while a window is open.
 export function aiTransferRound(g: Game): { deals: number } {
   let deals = 0;
-  if (!isWindowOpen(g.meta.week)) return { deals };
+  const now = gameNow(g);
+  if (!isWindowOpen(now)) return { deals };
   const user = g.meta.userClubId;
   let userOffers = 0;
-  const all = Object.values(g.players);
+  const dl = daysToDeadline(now);
+  const deadline = dl !== null && dl <= 1; // frantic last-two-days activity
+  const all = Object.values(g.players).filter((p) => (p.clubId || !p.prospect) && !p.academy && !p.parentClubId);
+  const expires = addDays(now, 3);
 
   for (const club of shuffle(Object.values(g.clubs))) {
     if (club.id === user) continue;
@@ -40,7 +46,7 @@ export function aiTransferRound(g: Game): { deals: number } {
       if (surplus) releaseToFreeAgents(g, surplus);
       continue;
     }
-    if (!chance(0.4)) continue;
+    if (!chance(deadline ? 0.7 : 0.3)) continue;
 
     // Work out the biggest need
     let bestPos: Pos = 'MF';
@@ -72,14 +78,25 @@ export function aiTransferRound(g: Game): { deals: number } {
     const owner = ownerOf(target)!;
     const fee = askingPrice(g, target);
     if (owner === user) {
-      if (userOffers < 2 && !hasPendingOffer(g, target.id) && chance(target.listed ? 1 : 0.35)) {
+      if (userOffers < 2 && !hasPendingOffer(g, target.id) && chance(target.listed ? 1 : 0.3)) {
+        // A release clause can be triggered outright
+        const clause = target.releaseClause;
+        if (clause && clause <= club.transferBudget && clause <= club.balance && chance(0.5)) {
+          const wage = contractDemand(target, club);
+          const ok = !(target.personality && target.personality.loyalty >= 17 && chance(0.6));
+          if (ok && executeDeal(g, { playerId: target.id, buyerId: club.id, fee: clause, wage, years: Math.min(maxYears(target), 4), kind: 'permanent' }).ok) {
+            addMessage(g, { category: 'Transfers', from: 'Club Secretary', important: true, subject: `Release clause triggered: ${target.name}`, body: `${club.name} paid the ${fmtMoney(clause)} release clause in ${target.name}'s contract. He has agreed personal terms and left the club.` });
+            deals++;
+          }
+          continue;
+        }
         const offer = roundTo(fee * (0.88 + rand() * 0.27), 50000);
         if (validateDeal(g, { playerId: target.id, buyerId: club.id, fee: offer, wage: target.wage, years: Math.max(2, target.contractYears), kind: 'permanent' }).length === 0) {
           userOffers++;
           addMessage(g, {
             category: 'Transfers', from: `${club.name} (Board)`, important: offer >= target.value, subject: `Offer for ${target.name}`,
-            body: `${club.name} have submitted a ${fmtMoney(offer)} bid for ${target.name} (${target.pos}, ${target.ovr}, age ${target.age}). Our valuation is ${fmtMoney(fee)}. The offer is valid for two matchdays.`,
-            action: { kind: 'transfer_offer', playerId: target.id, clubId: club.id, fee: offer, expires: g.meta.week + 2 },
+            body: `${club.name} have submitted a ${fmtMoney(offer)} bid for ${target.name} (${target.pos}, ${target.ovr}, age ${target.age}). Our valuation is ${fmtMoney(fee)}. The offer is valid for three days.`,
+            action: { kind: 'transfer_offer', playerId: target.id, clubId: club.id, fee: offer, expires },
           });
         }
       }
@@ -102,18 +119,35 @@ export function aiTransferRound(g: Game): { deals: number } {
       addMessage(g, {
         category: 'Transfers', from: `${g.clubs[c.clubId].name} (Board)`, subject: `Loan request: ${p.name}`,
         body: `${g.clubs[c.clubId].name} would like to take ${p.name} on loan until the end of the season. They will cover his full wages and pay a ${fmtMoney(fee)} loan fee.`,
-        action: { kind: 'loan_offer', playerId: p.id, clubId: c.clubId, fee, expires: g.meta.week + 2 },
+        action: { kind: 'loan_offer', playerId: p.id, clubId: c.clubId, fee, expires },
       });
     } else {
       const offer = roundTo(c.estimate * (0.9 + rand() * 0.12), 50000);
       addMessage(g, {
         category: 'Transfers', from: `${g.clubs[c.clubId].name} (Board)`, important: true, subject: `Bid for listed player ${p.name}`,
         body: `${g.clubs[c.clubId].name} have bid ${fmtMoney(offer)} for ${p.name}, who is on the transfer list. Our valuation is ${fmtMoney(p.value)}.`,
-        action: { kind: 'transfer_offer', playerId: p.id, clubId: c.clubId, fee: offer, expires: g.meta.week + 2 },
+        action: { kind: 'transfer_offer', playerId: p.id, clubId: c.clubId, fee: offer, expires },
       });
     }
   });
   return { deals };
+}
+
+// Young surplus players go on loan to lower-ranked clubs (some with an option to buy).
+export function aiLoanRound(g: Game): void {
+  const user = g.meta.userClubId;
+  for (const club of shuffle(Object.values(g.clubs))) {
+    if (club.id === user || !chance(0.12)) continue;
+    const squad = squadOf(g, club.id).sort((a, b) => b.ovr - a.ovr);
+    if (squad.length < 24) continue;
+    const cand = squad.slice(18).find((p) => p.age <= 23 && !p.parentClubId && p.pot - p.ovr >= 4);
+    if (!cand) continue;
+    const tier = g.leagues[club.leagueId ?? 'L1']?.tier ?? 1;
+    const dest = shuffle(Object.values(g.clubs)).find((c) => c.id !== user && c.id !== club.id && (g.leagues[c.leagueId ?? 'L1']?.tier ?? 1) >= tier
+      && squadOf(g, c.id).length < 26 && squadOf(g, c.id).filter((x) => x.pos === cand.pos).length < NEED[cand.pos] && c.wageBudget - wageBill(g, c.id) > cand.wage);
+    if (!dest) continue;
+    executeDeal(g, { playerId: cand.id, buyerId: dest.id, fee: 0, wage: cand.wage, years: 1, kind: 'loan', loanOption: chance(0.3) ? { fee: cand.value, obligatory: false } : undefined });
+  }
 }
 
 // AI contract renewals for important players with one year left.
@@ -128,6 +162,7 @@ export function aiRenewals(g: Game): void {
       if (wageBill(g, club.id) - p.wage + wage > club.wageBudget) return;
       p.wage = wage;
       p.contractYears = Math.min(maxYears(p), randInt(2, 4));
+      p.contractEnd = contractEndFor(gameNow(g), p.contractYears);
       p.value = valueOf(p.ovr, p.age, p.pot, p.contractYears);
     });
   }

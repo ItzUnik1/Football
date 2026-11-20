@@ -1,18 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { store, useStore } from '../store';
 import { CatIcon, Panel } from '../common';
 import { CATEGORIES, type Category, type Message } from '../../engine/types';
-import { gameDate } from '../../engine/messages';
+import { fmtDate, fmtDateLong } from '../../engine/calendar';
+const msgDate = (m: Message) => fmtDate(m.date ?? m.createdAt);
 import { markAllRead, markRead, performAction, type InboxChoice } from '../../engine/inbox';
 import { fmtMoney } from '../../engine/valuation';
 import type { Screen } from '../store';
 
 export function InboxScreen() {
-  const { g } = useStore();
+  const { g, ui } = useStore();
   const [cat, setCat] = useState<'All' | Category>('All');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [impOnly, setImpOnly] = useState(false);
-  const [selId, setSelId] = useState<string | null>(null);
+  const selId = ui.selectedMessageId ?? null;
+  const setSelId = (id: string | null) => store.selectMessage(id ?? undefined);
+  useEffect(() => { if (selId) document.getElementById('msg-' + selId)?.scrollIntoView({ block: 'nearest' }); }, [selId]);
 
   let list = g!.messages.slice().reverse();
   if (cat !== 'All') list = list.filter((m) => m.category === cat);
@@ -28,7 +31,7 @@ export function InboxScreen() {
 
   const act = async (m: Message, choice: InboxChoice) => {
     const r = await store.mutate((gg) => performAction(gg, m.id, choice));
-    if (r.goto) { store.go(r.goto.screen as Screen, r.goto.playerId); if (r.goto.playerId) store.openProfile(r.goto.playerId); return; }
+    if (r.goto) { store.go(r.goto.screen as Screen, undefined); if (r.goto.playerId) store.openProfile(r.goto.playerId); return; }
     store.toast(r.message, r.ok ? 'ok' : 'bad');
   };
 
@@ -53,11 +56,11 @@ export function InboxScreen() {
           <div className="scroll-y h-full">
             {list.length === 0 && <div className="p-4 text-center text-slate-500">No messages.</div>}
             {list.map((m) => (
-              <button key={m.id} onClick={() => open(m)} className={`w-full text-left px-2 py-1.5 border-b border-line/40 flex gap-2 items-start ${selId === m.id ? 'bg-accent/15' : 'active:bg-panel2'}`}>
+              <button key={m.id} id={'msg-' + m.id} onClick={() => open(m)} className={`w-full text-left px-2 py-1.5 border-b border-line/40 flex gap-2 items-start ${selId === m.id ? 'bg-accent/15' : 'active:bg-panel2'}`}>
                 <span className="pt-1"><CatIcon cat={m.category} /></span>
                 <div className="flex-1 min-w-0">
                   <div className={`truncate ${m.read ? 'text-slate-300' : 'font-bold text-white'}`}>{m.important && <span className="text-warn mr-1">!</span>}{m.subject}</div>
-                  <div className="text-[10px] text-slate-500 truncate">{m.from} - {gameDate(g!, m.week).replace(/^\w+ /, '')}{m.action && !m.resolved && m.action.kind !== 'goto' ? ' - ACTION' : ''}</div>
+                  <div className="text-[10px] text-slate-500 truncate">{m.from} - {msgDate(m)}{m.action && !m.resolved && m.action.kind !== 'goto' ? ' - ACTION' : ''}</div>
                 </div>
                 {!m.read && <span className="w-2 h-2 rounded-full bg-accent mt-1.5 shrink-0" />}
               </button>
@@ -71,7 +74,7 @@ export function InboxScreen() {
             <div className="px-3 py-2 border-b border-line shrink-0">
               <div className="flex items-center gap-2"><CatIcon cat={sel.category} /><span className="text-[10px] uppercase tracking-wider text-slate-400">{sel.category}</span>{sel.important && <span className="text-[10px] bg-warn text-black rounded px-1 font-bold">IMPORTANT</span>}</div>
               <div className="font-bold text-sm mt-0.5">{sel.subject}</div>
-              <div className="text-[11px] text-slate-400">From {sel.from} - {gameDate(g!, sel.week)}</div>
+              <div className="text-[11px] text-slate-400">From {sel.from} - {fmtDateLong(sel.date ?? sel.createdAt)}</div>
             </div>
             <div className="flex-1 min-h-0 scroll-y px-3 py-2 whitespace-pre-line text-[12px] text-slate-200">{sel.body}</div>
             <div className="px-3 py-2 border-t border-line shrink-0 flex flex-wrap gap-2 items-center">
@@ -89,13 +92,13 @@ function MessageActions({ m, act }: { m: Message; act: (m: Message, c: InboxChoi
   const a = m.action;
   if (m.resolved) return <span className="text-[11px] text-slate-300 border border-line rounded px-2 py-1">{m.resolved}</span>;
   if (!a) return null;
-  if (a.kind === 'goto') return <button className="btn btn-sm btn-primary" onClick={() => act(m, 'accept')}>{a.screen === 'squad' ? 'View player' : `Go to ${a.screen}`}</button>;
+  if (a.kind === 'goto') return <button className="btn btn-sm btn-primary" onClick={() => act(m, 'accept')}>{a.screen === 'squad' ? 'View player' : `Go to ${a.screen === 'home' ? 'Home' : a.screen}`}</button>;
   if (a.kind === 'transfer_offer') return (
     <>
       <button className="btn btn-sm btn-primary" onClick={() => act(m, 'accept')}>Accept {fmtMoney(a.fee)}</button>
       <button className="btn btn-sm" onClick={() => act(m, 'counter')}>Ask for more</button>
       <button className="btn btn-sm btn-danger" onClick={() => act(m, 'reject')}>Reject</button>
-      <span className="text-[10px] text-slate-500">Valid until matchday {a.expires}</span>
+      <span className="text-[10px] text-slate-500">Valid until {fmtDate(a.expires)}</span>
     </>
   );
   if (a.kind === 'loan_offer') return (
@@ -117,5 +120,32 @@ function MessageActions({ m, act }: { m: Message; act: (m: Message, c: InboxChoi
       <button className="btn btn-sm" onClick={() => act(m, 'ignore')}>Tell him to fight for his place</button>
     </>
   );
+  if (a.kind === 'wants_move') return (
+    <>
+      <button className="btn btn-sm btn-primary" onClick={() => act(m, 'promise')}>Persuade to stay</button>
+      <button className="btn btn-sm" onClick={() => act(m, 'accept')}>Transfer list him</button>
+      <button className="btn btn-sm btn-danger" onClick={() => act(m, 'reject')}>Refuse</button>
+    </>
+  );
+  if (a.kind === 'youth_contract') return (
+    <>
+      <button className="btn btn-sm btn-primary" onClick={() => act(m, 'accept')}>Offer pro contract</button>
+      <button className="btn btn-sm btn-danger" onClick={() => act(m, 'reject')}>Release</button>
+      <span className="text-[10px] text-slate-500">Decide by {fmtDate(a.expires)}</span>
+    </>
+  );
+  if (a.kind === 'loan_option') return (
+    <>
+      <button className="btn btn-sm btn-primary" onClick={() => act(m, 'accept')}>Buy for {fmtMoney(a.fee)}</button>
+      <button className="btn btn-sm btn-danger" onClick={() => act(m, 'reject')}>Decline</button>
+    </>
+  );
+  if (a.kind === 'board_funds') return (
+    <>
+      <button className="btn btn-sm btn-primary" onClick={() => act(m, 'accept')}>Accept {fmtMoney(a.amount)}</button>
+      <button className="btn btn-sm" onClick={() => act(m, 'reject')}>Decline</button>
+    </>
+  );
+  if (a.kind === 'scout_report') return <button className="btn btn-sm btn-primary" onClick={() => { store.go('scouting'); store.openProfile(a.playerId); }}>View player and report</button>;
   return null;
 }

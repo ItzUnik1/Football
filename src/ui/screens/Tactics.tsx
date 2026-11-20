@@ -25,7 +25,7 @@ export function TacticsScreen() {
   const assign = (pid: string) => {
     if (!sel) return;
     const p = g!.players[pid];
-    if (p.injuredWeeks > 0 || p.suspended > 0) { store.toast(`${p.name} is unavailable`, 'bad'); return; }
+    if (p.injuredDays > 0 || p.suspended > 0) { store.toast(`${p.name} is unavailable`, 'bad'); return; }
     store.mutate(() => {
       const from = locate(pid);
       const get = (s: NonNullable<Sel>) => (s.kind === 'xi' ? me.lineup[s.idx] : me.bench[s.idx]) ?? '';
@@ -82,7 +82,7 @@ export function TacticsScreen() {
           {slots.map((s, i) => {
             const p = g!.players[me.lineup[i]];
             const active = sel?.kind === 'xi' && sel.idx === i;
-            const bad = !p || p.injuredWeeks > 0 || p.suspended > 0;
+            const bad = !p || p.injuredDays > 0 || p.suspended > 0;
             return (
               <button key={i} onClick={() => setSel({ kind: 'xi', idx: i })} className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${s.x}%`, top: `${s.y}%` }}>
                 <span className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-[11px] font-extrabold text-black ${active ? 'ring-2 ring-white' : ''}`} style={{ background: bad ? '#ef4444' : p ? POS_COLOR[s.pos] : '#475569', borderColor: active ? '#fff' : 'rgba(0,0,0,.5)' }}>
@@ -146,7 +146,7 @@ export function TacticsScreen() {
                   const loc = locate(p.id);
                   const st = statusOf(p);
                   const fit = selSlot ? posFit(p.pos, selSlot.pos) : 1;
-                  const unavailable = p.injuredWeeks > 0 || p.suspended > 0;
+                  const unavailable = p.injuredDays > 0 || p.suspended > 0;
                   return (
                     <tr key={p.id} onClick={() => assign(p.id)} className={`border-t border-line/40 ${unavailable ? 'opacity-50' : 'active:bg-panel2'}`}>
                       <td className="td"><PosTag pos={p.pos} /></td>

@@ -10,7 +10,7 @@ export function ClubScreen() {
   const { g, ui } = useStore();
   const me = g!.clubs[g!.meta.userClubId];
   const squad = squadOf(g!, me.id);
-  const obj = boardObjective(repRank(g!, me.id));
+  const obj = boardObjective(g!, me.id);
   const nats = Object.entries(squad.reduce<Record<string, number>>((m, p) => { m[p.nat] = (m[p.nat] ?? 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const [confirm, setConfirm] = useState(false);
   const avgAge = squad.reduce((s, p) => s + p.age, 0) / squad.length;
@@ -23,7 +23,7 @@ export function ClubScreen() {
             <div className="flex-1 min-w-0">
               <div className="text-xl font-extrabold leading-tight">{me.name}</div>
               <div className="text-slate-400">{me.city} - {me.stadium} ({me.capacity.toLocaleString()})</div>
-              <div className="text-slate-400">Reputation {me.reputation} - ranked {repRank(g!, me.id)} of 20 by reputation</div>
+              <div className="text-slate-400">Reputation {me.reputation} - ranked {repRank(g!, me.id)} of 20 in its division</div>
             </div>
             <div className="flex gap-1">{me.colors.map((c) => <span key={c} className="w-5 h-5 rounded border border-line" style={{ background: c }} />)}</div>
           </div>
@@ -31,7 +31,7 @@ export function ClubScreen() {
         <Panel title="Board">
           <div className="p-2 text-xs">
             <div>Objective: <b>{obj.text}</b></div>
-            <div className="text-slate-400 mt-1">Current position: {positionOf(g!, me.id)}th - Season {g!.meta.season}/{String(g!.meta.season + 1).slice(2)} - Matchday {Math.min(g!.meta.week, 38)}/38</div>
+            <div className="text-slate-400 mt-1">Current position: {positionOf(g!, me.id)} - Season {g!.meta.season}/{String(g!.meta.season + 1).slice(2)} - {g!.leagues[me.leagueId ?? 'L1'].name}</div>
           </div>
         </Panel>
         <Panel title="Squad profile">

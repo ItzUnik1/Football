@@ -2,17 +2,20 @@ import { useState } from 'react';
 import { store, useStore } from '../store';
 import { Badge, FormChips, Modal, Panel } from '../common';
 import type { MatchEvent, MatchReport, PlayerMatch, TeamStats } from '../../engine/types';
-import { gameDate } from '../../engine/messages';
 import { TOTAL_WEEKS } from '../../engine/fixtures';
+import { fmtDate, fmtDateShort } from '../../engine/calendar';
+import { nextFixture, userRound } from '../../engine/game';
 
 export function FixturesScreen() {
   const { g } = useStore();
   const me = g!.meta.userClubId;
   const [tab, setTab] = useState<'mine' | 'week'>('mine');
-  const [week, setWeek] = useState(Math.min(Math.max(1, g!.meta.week - 1), TOTAL_WEEKS));
+  const [week, setWeek] = useState(Math.min(Math.max(1, userRound(g!) - 1), TOTAL_WEEKS));
+  const myLeague = g!.clubs[me].leagueId ?? 'L1';
+  const [lid, setLid] = useState(myLeague);
+  const nextFx = nextFixture(g!);
   const mine = g!.fixtures.filter((f) => f.home === me || f.away === me).sort((a, b) => a.week - b.week);
-  const weekFx = g!.fixtures.filter((f) => f.week === week);
-  const nextWeek = g!.meta.week;
+  const weekFx = g!.fixtures.filter((f) => f.week === week && (f.leagueId ?? 'L1') === lid);
 
   const row = (f: (typeof mine)[number]) => {
     const home = f.home === me;
@@ -21,15 +24,15 @@ export function FixturesScreen() {
     const res = !f.played ? null : gf > ga ? 'W' : gf < ga ? 'L' : 'D';
     const has = !!g!.reports[f.id];
     return (
-      <tr key={f.id} className={`border-t border-line/40 ${f.week === nextWeek ? 'bg-accent/10' : ''} ${has ? 'active:bg-panel2' : ''}`} onClick={() => has && store.openReport(f.id)}>
-        <td className="td text-slate-400">MD {f.week}</td>
-        <td className="td text-slate-400">{gameDate(g!, f.week)}</td>
+      <tr key={f.id} className={`border-t border-line/40 ${nextFx?.id === f.id ? 'bg-accent/10' : ''} ${has ? 'active:bg-panel2' : ''}`} onClick={() => has && store.openReport(f.id)}>
+        <td className="td text-slate-400">R{f.week}</td>
+        <td className="td text-slate-400">{f.date ? fmtDate(f.date) : ''}</td>
         <td className="td w-6 text-center text-slate-400">{home ? 'H' : 'A'}</td>
         <td className="td"><span className="inline-flex items-center gap-1.5"><Badge club={opp} size={18} />{opp.name}</span></td>
         <td className="td text-center font-bold">
           {f.played ? (<span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 rounded-sm text-[9px] text-black flex items-center justify-center" style={{ background: res === 'W' ? '#22c55e' : res === 'D' ? '#eab308' : '#ef4444' }}>{res}</span>{f.hg}-{f.ag}</span>) : <span className="text-slate-500">vs</span>}
         </td>
-        <td className="td text-right text-[10px] text-accent2">{has ? 'Report >' : f.week === nextWeek ? 'Next match' : ''}</td>
+        <td className="td text-right text-[10px] text-accent2">{has ? 'Report >' : nextFx?.id === f.id ? 'Next match' : ''}</td>
       </tr>
     );
   };
@@ -38,11 +41,12 @@ export function FixturesScreen() {
     <div className="h-full flex flex-col gap-2 fade-in">
       <div className="flex gap-1 items-center shrink-0">
         <button className={`btn btn-sm ${tab === 'mine' ? 'btn-primary' : ''}`} onClick={() => setTab('mine')}>My fixtures</button>
-        <button className={`btn btn-sm ${tab === 'week' ? 'btn-primary' : ''}`} onClick={() => setTab('week')}>Matchday results</button>
+        <button className={`btn btn-sm ${tab === 'week' ? 'btn-primary' : ''}`} onClick={() => setTab('week')}>League results</button>
         {tab === 'week' && (
           <div className="flex items-center gap-1 ml-2">
             <button className="btn btn-sm" disabled={week <= 1} onClick={() => setWeek(week - 1)}>&lt;</button>
-            <span className="font-semibold w-24 text-center">Matchday {week}</span>
+            <span className="font-semibold w-20 text-center">Round {week}</span>
+            {Object.values(g!.leagues).map((l) => <button key={l.id} className={`btn btn-sm ${lid === l.id ? 'btn-primary' : ''}`} onClick={() => setLid(l.id)}>{l.short}</button>)}
             <button className="btn btn-sm" disabled={week >= TOTAL_WEEKS} onClick={() => setWeek(week + 1)}>&gt;</button>
           </div>
         )}
@@ -116,7 +120,7 @@ export function MatchReportModal({ report, onClose }: { report: MatchReport; onC
   const statSet = (k: keyof TeamStats) => [s.home[k], s.away[k]] as [number, number];
   const [hx, ax] = statSet('xg');
   return (
-    <Modal wide onClose={onClose} title={`Matchday ${report.week} - Full time`} footer={<button className="btn btn-primary" onClick={onClose}>Continue</button>}>
+    <Modal wide onClose={onClose} title={`${report.date ? fmtDate(report.date) : ''} - ${g!.leagues[report.leagueId ?? 'L1']?.short ?? ''} round ${report.week} - Full time`} footer={<button className="btn btn-primary" onClick={onClose}>Close</button>}>
       <div className="flex items-center justify-center gap-4 mb-2">
         <div className="flex items-center gap-2 w-1/3 justify-end"><span className="font-bold truncate">{h.name}</span><Badge club={h} size={36} /></div>
         <div className="text-3xl font-extrabold tabular-nums">{report.hg} - {report.ag}</div>
@@ -145,7 +149,7 @@ export function MatchReportModal({ report, onClose }: { report: MatchReport; onC
             <ul className="space-y-1.5 list-disc pl-4 text-slate-200">{report.analysis.map((t, i) => <li key={i}>{t}</li>)}</ul>
             {report.injuries.length > 0 && (
               <div className="mt-2"><div className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">Injuries</div>
-                {report.injuries.map((i) => <div key={i.playerId} className="text-bad">{g!.players[i.playerId]?.name}: {i.injury} ({i.weeks}w)</div>)}</div>
+                {report.injuries.map((i) => <div key={i.playerId} className="text-bad">{g!.players[i.playerId]?.name}: {i.injury} ({i.days ?? i.weeks * 7} days)</div>)}</div>
             )}
           </div>
         </div>

@@ -1,7 +1,11 @@
 import type { Game, Message } from './types';
 import { aiValuation, askingPrice, executeDeal, loanFeeFor, maxYears, negotiateRenewal, validateDeal } from './transfers';
 import { fmtMoney } from './valuation';
-import { addMessage } from './messages';
+import { addMessage, gameNow } from './messages';
+import { activateLoanOption } from './transfers';
+import { promoteYouth, releaseYouth } from './youth';
+import { addDays } from './calendar';
+import { clamp } from './rng';
 
 export type InboxChoice = 'accept' | 'reject' | 'counter' | 'promise' | 'ignore';
 export interface ActionResult { ok: boolean; message: string; goto?: { screen: string; playerId?: string } }
@@ -27,7 +31,7 @@ export function performAction(g: Game, msgId: string, choice: InboxChoice): Acti
     const p = g.players[a.playerId];
     const buyer = g.clubs[a.clubId];
     if (!p || !buyer || p.clubId !== user) { resolve(m, 'No longer applicable'); return { ok: false, message: 'The player is no longer at the club.' }; }
-    if (g.meta.week > a.expires) { resolve(m, 'Offer expired'); return { ok: false, message: 'This offer has expired.' }; }
+    if (gameNow(g) > a.expires) { resolve(m, 'Offer expired'); return { ok: false, message: 'This offer has expired.' }; }
     const loan = a.kind === 'loan_offer';
     if (choice === 'reject') { resolve(m, 'Offer rejected'); return { ok: true, message: `You rejected ${buyer.name}'s offer.` }; }
     if (choice === 'accept') {
@@ -53,7 +57,7 @@ export function performAction(g: Game, msgId: string, choice: InboxChoice): Acti
       if (asked <= willing * 1.12) {
         const improved = Math.min(asked, roundTo(willing, 50000));
         a.fee = Math.max(a.fee, improved);
-        a.expires = g.meta.week + 2;
+        a.expires = addDays(gameNow(g), 3);
         m.body += `\n\n${buyer.name} have improved their offer to ${fmtMoney(a.fee)}.`;
         return { ok: true, message: `${buyer.name} raised their bid to ${fmtMoney(a.fee)}.` };
       }
@@ -91,6 +95,45 @@ export function performAction(g: Game, msgId: string, choice: InboxChoice): Acti
     resolve(m, 'Told to fight for his place');
     return { ok: true, message: `${p.name} accepted it, but his morale dropped.` };
   }
+
+  if (a.kind === 'wants_move') {
+    const p = g.players[a.playerId];
+    if (!p || p.clubId !== user) { resolve(m, 'No longer applicable'); return { ok: false, message: 'The player is no longer at the club.' }; }
+    if (choice === 'accept') { p.listed = true; p.morale = clamp(p.morale + 4, 0, 100); resolve(m, 'Transfer listed'); return { ok: true, message: `${p.name} has been placed on the transfer list.` }; }
+    if (choice === 'promise') { p.promisedStart = true; p.morale = clamp(p.morale + 10, 0, 100); p.wantsMove = false; resolve(m, 'Persuaded to stay'); return { ok: true, message: `${p.name} agreed to stay - for now. Give him minutes.` }; }
+    p.morale = clamp(p.morale - 6, 0, 100); resolve(m, 'Request refused');
+    return { ok: true, message: `${p.name} is unhappy with your decision.` };
+  }
+
+  if (a.kind === 'youth_contract') {
+    const p = g.players[a.playerId];
+    if (!p || p.clubId !== user || !p.academy) { resolve(m, 'No longer applicable'); return { ok: false, message: 'The youngster is no longer in the academy.' }; }
+    if (gameNow(g) > a.expires) { resolve(m, 'Expired'); return { ok: false, message: 'This offer has expired.' }; }
+    if (choice === 'accept') {
+      const r = promoteYouth(g, p.id);
+      if (r.ok) resolve(m, 'Professional contract signed');
+      return { ok: r.ok, message: r.message };
+    }
+    const r = releaseYouth(g, p.id); resolve(m, 'Released'); return { ok: r.ok, message: r.message };
+  }
+
+  if (a.kind === 'loan_option') {
+    const p = g.players[a.playerId];
+    if (!p || !p.parentClubId) { resolve(m, 'No longer applicable'); return { ok: false, message: 'No option available.' }; }
+    if (choice === 'accept') { const r = activateLoanOption(g, p.id); if (r.ok) resolve(m, 'Option exercised'); return { ok: r.ok, message: r.message }; }
+    resolve(m, 'Option declined'); return { ok: true, message: 'You declined the option to buy.' };
+  }
+
+  if (a.kind === 'board_funds') {
+    if (gameNow(g) > a.expires) { resolve(m, 'Expired'); return { ok: false, message: 'The board withdrew the offer.' }; }
+    if (choice === 'accept') {
+      const c = g.clubs[user]; c.transferBudget += a.amount; g.board.fundsRequested = true;
+      resolve(m, `Accepted ${fmtMoney(a.amount)}`); return { ok: true, message: `${fmtMoney(a.amount)} added to your transfer budget.` };
+    }
+    resolve(m, 'Declined'); return { ok: true, message: 'You declined the extra funds.' };
+  }
+
+  if (a.kind === 'scout_report') return { ok: true, message: '', goto: { screen: 'scouting', playerId: a.playerId } };
   return { ok: false, message: 'Unsupported.' };
 }
 
@@ -99,8 +142,9 @@ export function expireMessages(g: Game): void {
   for (const m of g.messages) {
     if (m.resolved || !m.action) continue;
     const a = m.action;
-    if ((a.kind === 'transfer_offer' || a.kind === 'loan_offer' || a.kind === 'contract') && g.meta.week > a.expires) {
+    if ('expires' in a && gameNow(g) > a.expires) {
       m.resolved = 'Expired';
+      if (a.kind === 'youth_contract') { const p = g.players[a.playerId]; if (p?.academy && p.clubId === g.meta.userClubId) releaseYouth(g, p.id); }
     }
   }
 }
@@ -120,8 +164,8 @@ export function contractProposalMessage(g: Game, pid: string, demand: number): v
   addMessage(g, {
     category: 'Contracts', from: `${p.name}'s agent`, important: p.ovr >= 70,
     subject: `Contract talks: ${p.name}`,
-    body: `${p.name}'s contract runs out after this season. His agent proposes a new ${years}-year deal at ${fmtMoney(demand)} per week (currently ${fmtMoney(p.wage)}). Accepting runs the renewal through the club's wage budget.`,
-    action: { kind: 'contract', playerId: pid, wage: demand, years, expires: g.meta.week + 6 },
+    body: `${p.name}'s contract runs out at the end of the season. His agent proposes a new ${years}-year deal at ${fmtMoney(demand)} per week (currently ${fmtMoney(p.wage)}). Accepting runs the renewal through the club's wage budget. Open his profile to negotiate your own terms.`,
+    action: { kind: 'contract', playerId: pid, wage: demand, years, expires: addDays(gameNow(g), 30) },
   });
 }
 

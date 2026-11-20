@@ -49,3 +49,50 @@ export const CLUB_DEFS: ClubDef[] = [
 export const MANAGER_FIRST = ['Gareth', 'Marco', 'Stefan', 'Andre', 'Pedro', 'Ian', 'Rafael', 'Martin', 'Colin', 'Jorge', 'Dieter', 'Paolo', 'Neil', 'Hugo', 'Tomas', 'Alan', 'Viktor', 'Sean', 'Mateo', 'Frank'];
 export const MANAGER_LAST = ['Hollande', 'Brennan', 'Keller', 'Santoro', 'Whitmore', 'Duarte', 'Lindqvist', 'Mercer', 'Okonkwo', 'Bergmann', 'Castellan', 'Doyle', 'Varga', 'Ellison', 'Navarro', 'Pryce', 'Haldane', 'Morrow', 'Ferreira', 'Stroud'];
 export const MANAGER_STYLES = ['Attacking football', 'Disciplined defence', 'Counter-attacking', 'Possession-based', 'Pragmatic'];
+
+// ---- Phase 2: lower divisions (all fictional) ----
+const TIER2: [string, string, string][] = [
+  ['Granton Wanderers', 'GRW', 'Granton'], ['Penhallow Town', 'PEN', 'Penhallow'], ['Cobham United', 'CBU', 'Cobham'], ['Westford Athletic', 'WFA', 'Westford'],
+  ['Holmfirth Rovers', 'HFR', 'Holmfirth'], ['Aldenmoor FC', 'ALD', 'Aldenmoor'], ['Baxterley City', 'BXC', 'Baxterley'], ['Corrington Town', 'CRT', 'Corrington'],
+  ['Daleford United', 'DFU', 'Daleford'], ['Elmstead Albion', 'ELA', 'Elmstead'], ['Fairhaven FC', 'FHV', 'Fairhaven'], ['Greywater Rovers', 'GWR', 'Greywater'],
+  ['Hartland Athletic', 'HLA', 'Hartland'], ['Ingleby Town', 'ING', 'Ingleby'], ['Kestrel City', 'KSC', 'Kestrel'], ['Langmere United', 'LGM', 'Langmere'],
+  ['Millbrook Albion', 'MLB', 'Millbrook'], ['Nethercombe Town', 'NTC', 'Nethercombe'], ['Oldcastle Rangers', 'OCR', 'Oldcastle'], ['Pendleton Athletic', 'PDA', 'Pendleton'],
+];
+const TIER3: [string, string, string][] = [
+  ['Quarryfield FC', 'QFF', 'Quarryfield'], ['Ravensmoor Town', 'RVM', 'Ravensmoor'], ['Saltmarsh Town', 'SMT', 'Saltmarsh'], ['Tidemouth Rovers', 'TMR', 'Tidemouth'],
+  ['Uplands United', 'UPU', 'Uplands'], ['Vauxley Athletic', 'VXA', 'Vauxley'], ['Wrenfield Town', 'WFT', 'Wrenfield'], ['Yarnton FC', 'YRN', 'Yarnton'],
+  ['Ashgrove Albion', 'AGA', 'Ashgrove'], ['Brackenfield FC', 'BKF', 'Brackenfield'], ['Coldharbour City', 'CHC', 'Coldharbour'], ['Duskwood United', 'DWU', 'Duskwood'],
+  ['Eastmoor Town', 'EMT', 'Eastmoor'], ['Fernley Rovers', 'FNR', 'Fernley'], ['Glenmoor Athletic', 'GMA', 'Glenmoor'], ['Hollowbrook FC', 'HBK', 'Hollowbrook'],
+  ['Ironhill Town', 'IHT', 'Ironhill'], ['Juniper Rangers', 'JNR', 'Juniper'], ['Kingsmoor United', 'KMU', 'Kingsmoor'], ['Larkfield Albion', 'LKA', 'Larkfield'],
+];
+const PALETTE: [string, string][] = [
+  ['#b45309', '#fef3c7'], ['#0f766e', '#f0fdfa'], ['#9d174d', '#fdf2f8'], ['#1e40af', '#dbeafe'], ['#4d7c0f', '#ecfccb'], ['#7f1d1d', '#fecaca'],
+  ['#155e75', '#cffafe'], ['#6b21a8', '#f3e8ff'], ['#c2410c', '#ffedd5'], ['#1f2937', '#fde047'], ['#064e3b', '#a7f3d0'], ['#3730a3', '#e0e7ff'],
+];
+const SUFFIX = ['Road', 'Park', 'Lane', 'Ground', 'Field', 'Stadium'];
+
+export function lowerClubDefs(): { def: ClubDef; tier: number }[] {
+  const out: { def: ClubDef; tier: number }[] = [];
+  const add = (list: [string, string, string][], tier: number, repHi: number, repLo: number, capHi: number, capLo: number) => {
+    list.forEach(([name, short, city], i) => {
+      const f = i / (list.length - 1);
+      const pal = PALETTE[(i * 5 + tier * 3) % PALETTE.length];
+      out.push({
+        tier,
+        def: {
+          name, short, city, stadium: `${city} ${SUFFIX[(i + tier) % SUFFIX.length]}`, colors: [pal[0], pal[1]],
+          rep: Math.round(repHi - (repHi - repLo) * f), capacity: Math.round((capHi - (capHi - capLo) * f) / 100) * 100,
+        },
+      });
+    });
+  };
+  add(TIER2, 2, 37, 22, 14500, 8500);
+  add(TIER3, 3, 21, 8, 8500, 3500);
+  return out;
+}
+
+export const LEAGUE_DEFS = [
+  { id: 'L1', name: 'Touchline Premier Division', short: 'Premier', tier: 1, promote: 0, relegate: 3, startMonthDay: [7, 15] as [number, number], midweekEvery: 0 },
+  { id: 'L2', name: 'Touchline Championship', short: 'Champ.', tier: 2, promote: 3, relegate: 3, startMonthDay: [7, 8] as [number, number], midweekEvery: 6 },
+  { id: 'L3', name: 'Touchline League One', short: 'League 1', tier: 3, promote: 3, relegate: 0, startMonthDay: [7, 22] as [number, number], midweekEvery: 5 },
+];

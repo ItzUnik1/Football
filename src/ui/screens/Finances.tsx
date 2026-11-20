@@ -3,27 +3,32 @@ import { Bar, Panel, Stat } from '../common';
 import { fmtMoney } from '../../engine/valuation';
 import { squadOf, wageBill } from '../../engine/team';
 import { projectedWeekly } from '../../engine/finance';
+import { fmtDateShort, seasonStart } from '../../engine/calendar';
 
 export function FinancesScreen() {
   const { g } = useStore();
   const me = g!.clubs[g!.meta.userClubId];
   const bill = wageBill(g!, me.id);
-  const sum = (types: string[]) => g!.tx.filter((t) => types.includes(t.type)).reduce((s, t) => s + t.amount, 0);
+  const sStart = seasonStart(g!.meta.season);
+  const cur = g!.tx.filter((t) => (t.date ?? 0) >= sStart);
+  const sum = (types: string[]) => cur.filter((t) => types.includes(t.type)).reduce((s, t) => s + t.amount, 0);
   const tvIncome = sum(['tv']), gate = sum(['matchday']), wages = sum(['wages']);
-  const spent = -g!.tx.filter((t) => t.type === 'transfer_in' || t.type === 'loan_in').reduce((s, t) => s + t.amount, 0);
-  const earned = g!.tx.filter((t) => t.type === 'transfer_out' || t.type === 'loan_out').reduce((s, t) => s + t.amount, 0);
+  const spent = -cur.filter((t) => t.type === 'transfer_in' || t.type === 'loan_in').reduce((s, t) => s + t.amount, 0);
+  const earned = cur.filter((t) => t.type === 'transfer_out' || t.type === 'loan_out').reduce((s, t) => s + t.amount, 0);
   const proj = projectedWeekly(g!, me.id);
   const room = me.wageBudget - bill;
   const top = squadOf(g!, me.id).sort((a, b) => b.wage - a.wage).slice(0, 8);
-  const ledger = g!.tx.slice().reverse().slice(0, 60);
-  const net = tvIncome + gate + wages;
+  const ledger = g!.tx.filter((t) => t.amount !== 0 || t.type === 'contract').slice().reverse().slice(0, 80);
+  const staff = sum(['staff', 'agent']);
+  const net = tvIncome + gate + wages + staff;
+  const due = g!.installments.filter((i) => i.fromClubId === me.id);
   return (
     <div className="h-full flex gap-2 fade-in">
       <div className="flex-1 min-w-0 flex flex-col gap-2">
         <Panel>
           <div className="grid grid-cols-4">
             <Stat label="Club balance" value={fmtMoney(me.balance)} tone={me.balance < 0 ? 'bad' : undefined} />
-            <Stat label="Transfer budget" value={fmtMoney(me.transferBudget)} sub="25% of weekly profit added" />
+            <Stat label="Transfer budget" value={fmtMoney(me.transferBudget)} sub="30% of weekly profit added" />
             <Stat label="Wage budget" value={`${fmtMoney(me.wageBudget)}/wk`} />
             <Stat label="Wage room" value={`${fmtMoney(room)}/wk`} tone={room < me.wageBudget * 0.03 ? 'warn' : 'good'} />
           </div>
@@ -35,19 +40,21 @@ export function FinancesScreen() {
             <div className="text-[10px] text-slate-400 mt-1">Projected weekly income ~{fmtMoney(proj.income)} (TV {fmtMoney(me.weeklyIncome)} + gate)</div>
           </div>
         </Panel>
-        <Panel title="Season totals" className="shrink-0">
+        <Panel title="This season" className="shrink-0">
           <div className="grid grid-cols-3">
             <Stat label="TV & commercial" value={fmtMoney(tvIncome)} tone="good" />
             <Stat label="Matchday" value={fmtMoney(gate)} tone="good" />
             <Stat label="Wages paid" value={fmtMoney(wages)} tone="bad" />
             <Stat label="Transfer spend" value={fmtMoney(-spent)} tone="bad" />
             <Stat label="Transfer income" value={fmtMoney(earned)} tone="good" />
+            <Stat label="Staff & agents" value={fmtMoney(staff)} tone="bad" />
             <Stat label="Operating net" value={fmtMoney(net)} tone={net >= 0 ? 'good' : 'bad'} />
           </div>
         </Panel>
-        <Panel title="Top earners" className="flex-1">
+        <Panel title={`Top earners${due.length ? ` - ${due.length} instalment${due.length > 1 ? 's' : ''} due` : ''}`} className="flex-1">
           <div className="scroll-y h-full">
-            {top.map((p) => <div key={p.id} className="flex justify-between px-2 py-0.5 border-b border-line/40"><span>{p.name} <span className="text-slate-500">{p.contractYears}y</span></span><b>{fmtMoney(p.wage)}/wk</b></div>)}
+            {due.map((i) => <div key={i.id} className="flex justify-between px-2 py-0.5 border-b border-line/40 text-warn"><span>{i.desc} - {fmtDateShort(i.date)}</span><b>{fmtMoney(-i.amount)}</b></div>)}
+            {top.map((p) => <div key={p.id} className="flex justify-between px-2 py-0.5 border-b border-line/40"><span>{p.name} <span className="text-slate-500">{p.contractEnd ? new Date(p.contractEnd).getUTCFullYear() : ''}</span></span><b>{fmtMoney(p.wage)}/wk</b></div>)}
           </div>
         </Panel>
       </div>
@@ -55,7 +62,7 @@ export function FinancesScreen() {
         <div className="scroll-y h-full">
           {ledger.length === 0 ? <div className="p-3 text-center text-slate-500">No transactions yet.</div> : ledger.map((t) => (
             <div key={t.id} className="flex items-center gap-2 px-2 py-1 border-b border-line/40">
-              <span className="text-[10px] text-slate-500 w-8 shrink-0">MD{t.week}</span>
+              <span className="text-[10px] text-slate-500 w-12 shrink-0">{t.date ? fmtDateShort(t.date) : `MD${t.week}`}</span>
               <span className="flex-1 truncate text-slate-300">{t.desc}</span>
               <b className={t.amount > 0 ? 'text-accent' : t.amount < 0 ? 'text-bad' : 'text-slate-400'}>{t.amount === 0 ? '-' : fmtMoney(t.amount)}</b>
             </div>

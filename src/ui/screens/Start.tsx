@@ -42,13 +42,14 @@ export function ClubSelect() {
   const world = useMemo(() => createWorld(), []);
   const preview = useMemo(() => {
     const w = world;
-    return { clubs: w.clubs, players: w.players, fixtures: [], messages: [], reports: {}, tx: [], meta: { userClubId: '', week: 1, season: 2026, startDate: 0, nextMsg: 1, nextTx: 1, seed: 0, version: 1 } } as Game;
+    return { clubs: w.clubs, players: w.players, leagues: w.leagues, fixtures: [], messages: [], reports: {}, tx: [], meta: { userClubId: '', week: 1, season: 2026, startDate: 0, nextMsg: 1, nextTx: 1, seed: 0, version: 2 } } as unknown as Game;
   }, [world]);
-  const clubs = Object.values(preview.clubs).sort((a, b) => b.reputation - a.reputation);
-  const [sel, setSel] = useState(clubs[0].id);
+  const [tier, setTier] = useState('L1');
+  const clubs = Object.values(preview.clubs).filter((c) => c.leagueId === tier).sort((a, b) => b.reputation - a.reputation);
+  const [sel, setSel] = useState(Object.values(preview.clubs).filter((c) => c.leagueId === 'L1').sort((a, b) => b.reputation - a.reputation)[0].id);
   const club = preview.clubs[sel];
   const squad = squadOf(preview, sel).sort((a, b) => b.ovr - a.ovr);
-  const obj = boardObjective(repRank(preview, sel));
+  const obj = boardObjective(preview, sel);
   const [busy, setBusy] = useState(false);
 
   return (
@@ -59,7 +60,8 @@ export function ClubSelect() {
       </div>
       <div className="flex-1 min-h-0 flex gap-2">
         <Panel className="w-60 shrink-0">
-          <div className="scroll-y h-full">
+          <div className="flex gap-1 p-1 border-b border-line">{Object.values(preview.leagues).map((l) => <button key={l.id} className={`btn btn-sm flex-1 ${tier === l.id ? 'btn-primary' : ''}`} onClick={() => { setTier(l.id); setSel(Object.values(preview.clubs).filter((c) => c.leagueId === l.id).sort((a, b) => b.reputation - a.reputation)[0].id); }}>{l.short}</button>)}</div>
+          <div className="scroll-y" style={{ height: 'calc(100% - 34px)' }}>
             {clubs.map((c) => (
               <button key={c.id} onClick={() => setSel(c.id)} className={`w-full flex items-center gap-2 px-2 py-1.5 text-left border-b border-line/50 ${sel === c.id ? 'bg-accent/15' : 'active:bg-panel2'}`}>
                 <Badge club={c} size={26} />
@@ -83,7 +85,7 @@ export function ClubSelect() {
               <button className="btn btn-primary min-h-[38px] px-5" disabled={busy} onClick={() => { setBusy(true); store.startCareer(sel, world); }}>Begin Career</button>
             </div>
             <div className="grid grid-cols-4 gap-1 panel mb-2">
-              <Stat label="Squad strength" value={squadStrength(preview, sel)} sub={`Rank ${repRank(preview, sel)} of 20`} />
+              <Stat label="Squad strength" value={squadStrength(preview, sel)} sub={`Rank ${repRank(preview, sel)} of 20 - ${preview.leagues[club.leagueId ?? 'L1'].name}`} />
               <Stat label="Transfer budget" value={fmtMoney(club.transferBudget)} />
               <Stat label="Wage budget" value={`${fmtMoney(club.wageBudget)}/wk`} sub={`Bill ${fmtMoney(wageBill(preview, sel))}`} />
               <Stat label="Balance" value={fmtMoney(club.balance)} />

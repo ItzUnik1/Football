@@ -92,7 +92,7 @@ export function FormChips({ form }: { form: ('W' | 'D' | 'L')[] }) {
 }
 
 export function statusOf(p: Player): { text: string; color: string } | null {
-  if (p.injuredWeeks > 0) return { text: `Inj ${p.injuredWeeks}w`, color: '#ef4444' };
+  if (p.injuredDays > 0) return { text: `Inj ${p.injuredDays}d`, color: '#ef4444' };
   if (p.suspended > 0) return { text: `Ban ${p.suspended}`, color: '#f59e0b' };
   if (p.parentClubId) return { text: 'Loan', color: '#38bdf8' };
   return null;
@@ -101,7 +101,7 @@ export function statusOf(p: Player): { text: string; color: string } | null {
 export const moraleLabel = (m: number) => (m >= 80 ? 'Superb' : m >= 65 ? 'Good' : m >= 50 ? 'Okay' : m >= 35 ? 'Poor' : 'Unhappy');
 
 export function CatIcon({ cat }: { cat: string }) {
-  const map: Record<string, string> = { Transfers: '#38bdf8', Contracts: '#a78bfa', Medical: '#ef4444', Board: '#f59e0b', Players: '#22c55e', Fixtures: '#94a3b8', Competitions: '#eab308', Finances: '#14b8a6' };
+  const map: Record<string, string> = { Transfers: '#38bdf8', Contracts: '#a78bfa', Medical: '#ef4444', Board: '#f59e0b', Players: '#22c55e', Fixtures: '#94a3b8', Competitions: '#eab308', Finances: '#14b8a6', Scouting: '#06b6d4', Youth: '#ec4899', Training: '#38bdf8' };
   return <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: map[cat] ?? '#94a3b8' }} />;
 }
 
