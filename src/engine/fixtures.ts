@@ -65,7 +65,7 @@ export function computeTable(g: Game, leagueId?: string): StandingRow[] {
     else { h.drawn++; a.drawn++; h.points++; a.points++; h.form.push('D'); a.form.push('D'); }
   }
   const list = Object.values(rows);
-  list.forEach((r) => { r.gd = r.gf - r.ga; });
+  list.forEach((r) => { r.gd = r.gf - r.ga; r.points -= league?.penalties?.[r.clubId] ?? 0; });
   list.sort((x, y) => y.points - x.points || y.gd - x.gd || y.gf - x.gf || g.clubs[x.clubId].name.localeCompare(g.clubs[y.clubId].name));
   return list;
 }

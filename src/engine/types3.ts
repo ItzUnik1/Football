@@ -126,6 +126,10 @@ export interface Sponsor { name: string; weekly: number; end: number; bonusWin?:
 export interface ClubEcon {
   sponsor: Sponsor; kitDeal: { name: string; weekly: number; end: number };
   merchIndex: number; // 0..100 brand strength -> merchandising
+  merchBase: number; tvBase: number; sponsorBase: number; tier: number;
+  stSeason: number; // season in which season tickets were sold (0 = none)
+  maxCapacity: number;
+  penaltySeason?: number;
   seasonTickets: number; seasonTicketPrice: number;
   debt: number; interestRate: number; // annual
   construction?: Construction;

@@ -176,6 +176,7 @@ export interface League {
   relegate: number; // relegation places
   startDate: number; // first round, this season
   midweekEvery: number; // 0 = never; otherwise every Nth round is played midweek
+  penalties?: Record<string, number>; // points deducted this season (financial sanctions)
 }
 
 export type Category =

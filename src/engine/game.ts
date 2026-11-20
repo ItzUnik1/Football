@@ -4,7 +4,8 @@ import { computeTable, leagueIdOf, makeFixtures, positionOf } from './fixtures';
 import { simulateMatch, type TeamSheet } from './match';
 import { aiTactics, instrOf, signatureChangeCost, tacticSignature } from './tactics';
 import { aiSelectTeam, bestLineupScore, invalidateIndex, repairLineup, squadOf, squadStrength, validateLineup, wageBill } from './team';
-import { matchdayRevenue, processWeekFinance } from './finance';
+import { matchdayRevenue, weeklyEcon, econMonthly } from './econ';
+import { staffMonthly } from './staff';
 import { addMessage, gameNow, nextUnread, unreadCount } from './messages';
 import { aiFinance, aiLoanRound, aiRenewals, aiTransferRound } from './ai';
 import { contractProposalMessage, expireMessages } from './inbox';
@@ -364,7 +365,7 @@ function windowNotices(g: Game): void {
 function weeklyTick(g: Game): void {
   const me = userClub(g);
   const n = gameNow(g);
-  processWeekFinance(g);
+  weeklyEcon(g);
   aiFinance(g);
   weeklyDressingRoom(g);
   weeklyBoard(g);
@@ -418,6 +419,8 @@ function weeklyTick(g: Game): void {
 function monthlyTick(g: Game): void {
   monthlyDevelopment(g);
   mgrMonthly(g);
+  staffMonthly(g);
+  econMonthly(g);
   const p = parts(gameNow(g));
   if (p.m === 11 || p.m === 3) aiRenewals(g);
   if (p.m === 11 || p.m === 3 || p.m === 5) {
