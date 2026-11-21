@@ -70,8 +70,11 @@ export interface CareerEntry {
   p: number; w: number; d: number; l: number; gf: number; ga: number;
   trophies: string[]; best?: string; reason?: string; // how it ended
 }
+export type Background = 'player' | 'coach' | 'analyst' | 'journeyman';
+export interface ManagerProfile { name: string; age: number; nat: string; background: Background; style: string }
 export interface ManagerCareer {
   name: string; age: number; nat: string;
+  background?: Background; style?: string; motivation?: number; youth?: number; // profile (optional so older saves still load)
   rep: number; // 1..100 (club reputation as a manager)
   intlRep: number; // 1..100 (international job reputation)
   exp: number; // seasons managed

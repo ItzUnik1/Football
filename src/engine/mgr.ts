@@ -1,3 +1,4 @@
+import type { Background, ManagerProfile } from './types3';
 import type { CareerEntry, Club, Game, ManagerCareer, MatchReport, Mgr } from './types';
 import { MANAGER_FIRST, MANAGER_LAST, MANAGER_STYLES, NATIONS } from './names';
 import { chance, clamp, gauss, hash01, pick, randInt, shuffle } from './rng';
@@ -23,22 +24,33 @@ function mkMgr(g: Game, rep: number, ageMin = 38, ageMax = 66): Mgr {
 }
 export const managerWage = (rep: number): number => Math.round((rep * rep * 16) / 500) * 500;
 
-export function initManagers(g: Game): void {
+export const BACKGROUNDS: Record<Background, { label: string; blurb: string; rep: number; exp: number; tactical: number; motivation: number; youth: number }> = {
+  player: { label: 'Former professional', blurb: 'Respected by players: strong motivation and a reputation head start, weaker on tactics.', rep: 8, exp: 0, tactical: 9, motivation: 16, youth: 9 },
+  coach: { label: 'Academy coach', blurb: 'Developed young players for years: academy talent grows faster under you.', rep: -2, exp: 2, tactical: 11, motivation: 11, youth: 16 },
+  analyst: { label: 'Tactical analyst', blurb: 'Studies the game: better tactical ability and faster learning of new systems, lower profile.', rep: -4, exp: 0, tactical: 16, motivation: 9, youth: 10 },
+  journeyman: { label: 'Lower-league journeyman', blurb: 'Years in the lower divisions: experienced and balanced, with no standout strength.', rep: 0, exp: 6, tactical: 12, motivation: 12, youth: 11 },
+};
+export const clampAttr = (n: number): number => clamp(Math.round(n * 10) / 10, 1, 20);
+
+export function initManagers(g: Game, profile?: ManagerProfile): void {
   if (g.mgrs) return;
   g.mgrs = { pool: [], vacancies: [], nextId: 1, log: [] };
   const user = g.clubs[g.meta.userClubId];
   const now = gameNow(g);
   // The user's persona
   const persona = user.manager;
-  const rep = clamp(Math.round(user.reputation * 0.55 + 8), 8, 70);
+  const bg = profile ? BACKGROUNDS[profile.background] : undefined;
+  if (profile) { persona.name = profile.name; persona.age = profile.age; persona.nat = profile.nat; persona.style = profile.style; }
+  const rep = clamp(Math.round(user.reputation * 0.55 + 8 + (bg?.rep ?? 0)), 6, 72);
   g.career = {
-    name: persona.name, age: persona.age, nat: persona.nat, rep, intlRep: 6, exp: 0, tactical: 10,
+    name: persona.name, age: persona.age, nat: persona.nat, rep, intlRep: 6 + (bg?.rep ?? 0) / 2, exp: bg?.exp ?? 0, tactical: bg?.tactical ?? 10,
+    background: profile?.background ?? 'journeyman', style: persona.style, motivation: bg?.motivation ?? 12, youth: bg?.youth ?? 10,
     history: [{ kind: 'club', id: user.id, name: user.name, from: now, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, trophies: [] }],
     trophies: [], achievements: [], milestones: [{ date: now, text: `Appointed manager of ${user.name}` }],
     totals: { p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0 }, contract: null, nationContract: null,
     identity: { possession: 0, pressing: 0, counter: 0, direct: 0, defensive: 0, attacking: 0, matches: 0 }, offers: [], interviewsDone: 0,
   };
-  user.manager = { ...persona, id: USER_MGR_ID, rep, tactical: 10, motivation: 12, youth: 10, exp: 0, wage: managerWage(rep), since: now, contractEnd: utc(g.meta.season + 3, 5, 30) };
+  user.manager = { ...persona, id: USER_MGR_ID, rep, tactical: g.career.tactical, motivation: g.career.motivation!, youth: g.career.youth!, exp: g.career.exp, wage: managerWage(rep), since: now, contractEnd: utc(g.meta.season + 3, 5, 30) };
   g.career.contract = { clubId: user.id, wage: managerWage(rep), end: utc(g.meta.season + 3, 5, 30) };
   for (const c of Object.values(g.clubs)) if (c.id !== user.id) enrichClubManager(g, c);
   for (let i = 0; i < 70; i++) g.mgrs.pool.push(mkMgr(g, clamp(Math.round(18 + hash01('p' + i) * 55 + gauss() * 4), 12, 82)));
@@ -247,9 +259,12 @@ export function careerSeasonEnd(g: Game, info: { pos: number; metObjective: bool
   const lt = g.leagues[club.leagueId ?? 'L1'].tier;
   if (info.champion && lt === 1) milestone(g, 'top_champion', 'Top-flight champion', 'Won the top division.');
   if (e && (!e.best || info.pos < parseInt(e.best))) e.best = String(info.pos);
-  c.tactical = clamp(c.tactical + 0.4, 1, 20);
+  c.tactical = clampAttr(c.tactical + 0.4);
+  c.motivation = clampAttr((c.motivation ?? 12) + (info.metObjective ? 0.3 : 0.1));
+  c.youth = clampAttr((c.youth ?? 10) + 0.2);
   // sync persona record on the club manager object
   club.manager.rep = Math.round(c.rep); club.manager.exp = c.exp;
+  club.manager.tactical = Math.round(c.tactical); club.manager.motivation = Math.round(c.motivation); club.manager.youth = Math.round(c.youth);
 }
 
 export function addCupTrophyToEntry(g: Game, name: string): void {
@@ -287,7 +302,7 @@ export function availableJobs(g: Game): { clubId?: string; nationId?: string; si
     } else if (v.nationId) {
       const t = jobTerms(g, { nationId: v.nationId });
       if (g.career.nationContract) continue;
-      if (g.career.rep < 35 && g.career.intlRep < 15) continue;
+      if (g.career.rep < 35 && g.career.intlRep < 15 && g.intl.nations[v.nationId!]?.name !== g.career.nat) continue;
       out.push({ nationId: v.nationId, since: v.since, terms: t, fit: t.rep > g.career.rep + 15 ? 'reach' : 'good' });
     }
   }
@@ -371,7 +386,7 @@ export function acceptClubJob(g: Game, clubId: string, iv: Interview, wage?: num
   const now = gameNow(g);
   const end = utc(seasonOf(now) + years, 5, 30);
   g.meta.userClubId = clubId; g.meta.sacked = false;
-  club.manager = { name: g.career.name, age: g.career.age, nat: g.career.nat, style: club.manager.style, id: USER_MGR_ID, rep: Math.round(g.career.rep), tactical: Math.round(g.career.tactical), motivation: 12, youth: 10, exp: g.career.exp, wage: ask, since: now, contractEnd: end };
+  club.manager = { name: g.career.name, age: g.career.age, nat: g.career.nat, style: club.manager.style, id: USER_MGR_ID, rep: Math.round(g.career.rep), tactical: Math.round(g.career.tactical), motivation: Math.round(g.career.motivation ?? 12), youth: Math.round(g.career.youth ?? 10), exp: g.career.exp, wage: ask, since: now, contractEnd: end };
   g.career.contract = { clubId, wage: ask, end };
   g.career.history.push({ kind: 'club', id: clubId, name: club.name, from: now, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, trophies: [] });
   g.career.unemployedSince = undefined; g.career.resigned = false;
@@ -392,6 +407,7 @@ export function acceptNationJob(g: Game, nationId: string, wage?: number, years 
   const now = gameNow(g);
   n.userManaged = true; n.managerName = g.career.name; n.managerSince = now; n.managerRep = g.career.rep;
   g.intl.userNation = nationId;
+  if (n.name === g.career.nat) { n.familiarity = Math.min(100, n.familiarity + 10); g.media.relationship = clamp(g.media.relationship + 5, 0, 100); milestone(g, `home${nationId}`, 'Dream job', `Appointed manager of your home nation, ${n.name}.`); }
   g.career.nationContract = { nationId, end: utc(seasonOf(now) + years, 5, 30), wage: wage ?? t.wage };
   g.career.history.push({ kind: 'nation', id: nationId, name: n.name, from: now, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, trophies: [] });
   g.career.offers = g.career.offers.filter((o) => !o.nationId);

@@ -1,3 +1,4 @@
+import type { ManagerProfile } from './types3';
 import type { Game } from './types';
 import { createCup, cupDaily } from './cups';
 import { initIntl, intlDaily, playIntlDay, rolloverIntl } from './intl';
@@ -9,12 +10,12 @@ import { initStaff, staffRollover } from './staff';
 import { econDaily, econRollover, initEcon } from './econ';
 
 /** Idempotent initialiser for all Phase 3 state. Used for new careers and when upgrading a Phase 2 save. */
-export function initPhase3(g: Game): void {
+export function initPhase3(g: Game, profile?: ManagerProfile): void {
   g.news ??= [];
   g.cups ??= [];
   if (!g.cups.some((c) => c.season === g.meta.season)) g.cups.push(createCup(g, g.meta.season));
   initIntl(g);
-  initManagers(g);
+  initManagers(g, profile);
   initMedia(g);
   initSocial(g);
   initStaff(g);

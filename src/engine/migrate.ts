@@ -1,3 +1,4 @@
+import { setRealNames } from './names';
 import { initPhase3 } from './world3';
 import type { Game, League, Message, Player } from './types';
 import { addLowerClubs, agentFor, makeLeagues, personalityFor, seedNames, setGenDate } from './generator';
@@ -71,6 +72,7 @@ export function migrateToV2(g: Game): void {
 
   // New divisions
   const byLeague: Record<string, string[]> = { L1: Object.keys(g.clubs).filter((id) => g.clubs[id].leagueId === 'L1'), L2: [], L3: [] };
+  setRealNames(false); // Phase 1 worlds are fictional; keep the new divisions consistent
   addLowerClubs(g, byLeague, 1);
   g.leagues = makeLeagues(season, byLeague) as Record<string, League>;
   g.leagues.L1.startDate = l1start;

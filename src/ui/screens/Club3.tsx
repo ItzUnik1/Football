@@ -4,7 +4,7 @@ import { Bar, Empty, Modal, Panel, Stat } from '../common';
 import { fmtDate, fmtDateShort, seasonLabel, dayDiff } from '../../engine/calendar';
 import { fmtMoney } from '../../engine/valuation';
 import { gameNow } from '../../engine/messages';
-import { acceptClubJob, acceptNationJob, availableJobs, extendContract, interviewImpression, leaveNationJob, resign, tacticalIdentity, managerSummary, type Interview } from '../../engine/mgr';
+import { BACKGROUNDS, acceptClubJob, acceptNationJob, availableJobs, extendContract, interviewImpression, leaveNationJob, resign, tacticalIdentity, managerSummary, type Interview } from '../../engine/mgr';
 import { ALL_ROLES, ROLE_EFFECT, ROLE_LABEL, ROLE_MAX, ROLE_MIN, availableStaff, hireStaff, releaseStaff, renewStaff, staffOf, staffWageBill } from '../../engine/staff';
 import { FAC_LABEL, facilityLevel, facilityUpgradeCost, gateFor, standCost, standDays, startConstruction, stadiumUpgradeCost, PROFILE_LABEL, type BuildSpec } from '../../engine/econ';
 import { PRESS_TOPICS, answerPress } from '../../engine/media';
@@ -34,7 +34,8 @@ export function ManagerScreen() {
             <Stat label="Experience" value={`${c.exp} yrs`} />
             <Stat label="Record" value={sum.record} sub={`${sum.winPct}% wins`} />
           </div>
-          <div className="px-2 pb-2 text-[11px] text-slate-300">Style: <b className="text-accent2">{id.label}</b></div>
+          <div className="px-2 pb-1 text-[11px] text-slate-300">{c.nat} - {BACKGROUNDS[c.background ?? 'journeyman'].label} - preferred style <b>{c.style ?? 'Pragmatic'}</b> - plays like <b className="text-accent2">{id.label}</b></div>
+          <div className="px-2 pb-2 grid grid-cols-3 gap-2">{([['Tactics', c.tactical], ['Motivation', c.motivation ?? 12], ['Youth', c.youth ?? 10]] as const).map(([l, v]) => <div key={l} title={l === 'Tactics' ? 'Match tactical quality and learning new systems' : l === 'Motivation' ? 'How strongly your words and results lift morale' : 'How fast academy players develop'}><div className="flex justify-between text-[9px] uppercase tracking-wider text-slate-400"><span>{l}</span><b className="text-slate-200">{Math.round(v)}</b></div><Bar value={v} max={20} h={5} color="#22c55e" /></div>)}</div>
         </Panel>
         <Panel title="Contracts">
           <div className="p-2 text-[11px] space-y-1.5">

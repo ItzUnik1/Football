@@ -104,3 +104,9 @@ npm run build && node scripts/test-ui.mjs   # headless landscape UI walk through
   (you can be dismissed and take another job), **history** (season reviews, awards, club records).
 - **Inbox** is the first menu item. While you are on the Inbox, the main button reads the next unread message instead of advancing time.
 - **Saves:** Phase 1 careers are migrated automatically on first load (see `src/engine/migrate.ts`, tested by `scripts/test-migration.ts`).
+
+## Manager profile, save slots and real club names
+
+- **Manager profile**: choose name, age, nationality, background (former professional, academy coach, tactical analyst, lower-league journeyman) and preferred style. Background sets starting tactics/motivation/youth attributes, reputation and experience; the style sets your starting tactical preset. Attributes grow with success and affect tactical quality, press/morale effects and youth development.
+- **Save slots**: 6 independent careers (one IndexedDB database per slot). Slot 1 keeps the original database name, so earlier saves appear there automatically. Load/Manage screen shows manager, club, season and date, and allows deleting a slot.
+- **Real club names**: new worlds use real club names for all three tiers (names only; no licences). Badges and kits are generated, and players and managers stay fictional. Existing saves keep their old fictional names. Untick "Real club names" in the profile screen for the fictional world.

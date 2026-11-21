@@ -2,7 +2,7 @@ import type { Club, Fixture, Game, League, MatchReport, Player } from './types';
 import { createWorld } from './generator';
 import { computeTable, leagueIdOf, makeFixtures, positionOf } from './fixtures';
 import { simulateMatch, type TeamSheet } from './match';
-import { aiTactics, instrOf, signatureChangeCost, tacticSignature } from './tactics';
+import { aiTactics, applyPreset, instrOf, managerPreset, styleFromInstr, signatureChangeCost, tacticSignature } from './tactics';
 import { aiSelectTeam, bestLineupScore, invalidateIndex, repairLineup, squadOf, squadStrength, validateLineup, wageBill } from './team';
 import { matchdayRevenue, weeklyEcon, econMonthly } from './econ';
 import { payBonuses, socialWeekly, initSocial, chemistry } from './social';
@@ -22,6 +22,7 @@ import { emptyHistory } from './history';
 import { rolloverSeason } from './season';
 import { youthIntake } from './youth';
 import { initPhase3, phase3Daily } from './world3';
+import type { ManagerProfile } from './types3';
 import { mgrMonthly, mgrWeekly, recordUserMatch, userContractWatch } from './mgr';
 import { playIntlDay, userIntlFixtureToday, validateNationTeam, applyNationTactics } from './intl';
 
@@ -32,6 +33,7 @@ export const START_DATE = (season: number): number => utc(season, 7, 1); // 1 Au
 export function newCareer(
   userClubId: string, seed = (Date.now() & 0x7fffffff),
   world?: { clubs: Record<string, Club>; players: Record<string, Player>; leagues?: Record<string, League> },
+  profile?: ManagerProfile,
 ): Game {
   setSeed(seed);
   const w = world && world.leagues ? (world as { clubs: Record<string, Club>; players: Record<string, Player>; leagues: Record<string, League> }) : createWorld();
@@ -49,7 +51,8 @@ export function newCareer(
   initScouting(g);
   initTraining(g);
   initBoard(g);
-  initPhase3(g);
+  initPhase3(g, profile);
+  if (profile) { const uc = g.clubs[userClubId]; applyPreset(uc, managerPreset(profile.style)); uc.style = styleFromInstr(uc.instr!); }
   const intake = youthIntake(g, userClubId);
   intake.forEach((p) => { p.age = Math.min(p.age, 18); });
   const club = g.clubs[userClubId];

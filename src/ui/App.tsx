@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { store, useStore, type Screen } from './store';
 import { Badge, Modal } from './common';
-import { ClubSelect, StartScreen } from './screens/Start';
+import { ClubSelect, ProfileScreen, SlotsScreen, StartScreen } from './screens/Start';
 import { HomeScreen } from './screens/Home';
 import { CalendarScreen } from './screens/Calendar';
 import { PlayerProfile, SquadScreen } from './screens/Squad';
@@ -234,6 +234,8 @@ export default function App() {
       <Toast />
       {ui.phase === 'loading' && <div className="h-full flex items-center justify-center text-slate-400">Loading...</div>}
       {ui.phase === 'start' && <StartScreen />}
+      {ui.phase === 'slots' && <SlotsScreen />}
+      {ui.phase === 'profile' && <ProfileScreen />}
       {ui.phase === 'select' && <ClubSelect />}
       {ui.phase === 'game' && <GameShell />}
     </>

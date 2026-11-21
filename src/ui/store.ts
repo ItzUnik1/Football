@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { Club, Game, League, Player } from '../engine/types';
-import { deleteSave, hasSave, loadGame, saveGame } from '../db/database';
+import { deleteSlot, getSlot, loadGame, saveGame, setSlot, slotSummaries, type SlotInfo } from '../db/database';
+import type { ManagerProfile } from '../engine/types3';
 import { newCareer } from '../engine/game';
 
 export type Screen =
@@ -18,7 +19,9 @@ export const normalizeScreen = (s: string): Screen => {
 };
 
 export interface UiState {
-  phase: 'loading' | 'start' | 'select' | 'game';
+  phase: 'loading' | 'start' | 'slots' | 'profile' | 'select' | 'game';
+  slots: SlotInfo[];
+  draft?: { profile: ManagerProfile; slot: number; realNames: boolean };
   screen: Screen;
   profileId?: string;
   selectedMessageId?: string;
@@ -35,7 +38,7 @@ export interface UiState {
 
 class Store {
   game: Game | null = null;
-  ui: UiState = { phase: 'loading', screen: 'inbox', hasSave: false, saving: false };
+  ui: UiState = { phase: 'loading', screen: 'inbox', hasSave: false, saving: false, slots: [] };
   private v = 0;
   private listeners = new Set<() => void>();
   private toastId = 0;
@@ -46,13 +49,27 @@ class Store {
 
   async init() {
     try {
-      const has = await hasSave();
-      this.ui = { ...this.ui, phase: 'start', hasSave: has };
+      const slots = await slotSummaries();
+      this.ui = { ...this.ui, phase: 'start', slots, hasSave: slots.some((x) => x.used) };
     } catch {
       this.ui = { ...this.ui, phase: 'start', hasSave: false };
     }
     this.emit();
   }
+
+  async refreshSlots() {
+    try { const slots = await slotSummaries(); this.ui = { ...this.ui, slots, hasSave: slots.some((x) => x.used) }; } catch { /* storage unavailable */ }
+    this.emit();
+  }
+
+  /** Slot used most recently (remembered on this device), else the newest used slot. */
+  lastSlot(): number | undefined {
+    let n: number | undefined;
+    try { n = parseInt(localStorage.getItem('touchline.slot') ?? '', 10) || undefined; } catch { /* ignore */ }
+    const used = this.ui.slots.filter((x) => x.used);
+    return used.find((x) => x.slot === n)?.slot ?? used.sort((a, b) => (b.date ?? 0) - (a.date ?? 0))[0]?.slot;
+  }
+  private remember(n: number) { try { localStorage.setItem('touchline.slot', String(n)); } catch { /* ignore */ } }
 
   setUi(p: Partial<UiState>) { this.ui = { ...this.ui, ...p }; this.emit(); }
   go(screen: Screen | string, profileId?: string) { this.ui = { ...this.ui, screen: normalizeScreen(screen), profileId }; this.emit(); }
@@ -66,33 +83,45 @@ class Store {
     setTimeout(() => { if (this.ui.toast?.id === id) { this.ui = { ...this.ui, toast: undefined }; this.emit(); } }, 3200);
   }
 
-  async continueCareer() {
+  async continueCareer(slot?: number) {
+    const n = slot ?? this.lastSlot() ?? 1;
     this.setUi({ phase: 'loading' });
+    setSlot(n);
     const g = await loadGame();
-    if (!g) { this.setUi({ phase: 'start', hasSave: false }); return; }
+    if (!g) { await this.refreshSlots(); this.setUi({ phase: 'start' }); return; }
+    this.remember(n);
     this.game = g;
     this.ui = { ...this.ui, phase: 'game', screen: 'inbox', hasSave: true };
     this.emit();
   }
 
   async startCareer(clubId: string, world?: { clubs: Record<string, Club>; players: Record<string, Player>; leagues?: Record<string, League> }) {
+    const d = this.ui.draft;
     this.setUi({ phase: 'loading' });
-    await deleteSave();
-    this.game = newCareer(clubId, undefined, world);
+    const n = d?.slot ?? getSlot();
+    setSlot(n);
+    await deleteSlot(n);
+    this.game = newCareer(clubId, undefined, world, d?.profile);
+    this.remember(n);
     await saveGame(this.game);
     this.ui = { ...this.ui, phase: 'game', screen: 'inbox', hasSave: true };
     this.emit();
   }
 
   async deleteCareer() {
-    await deleteSave();
+    await deleteSlot(getSlot());
     await this.quitToMenu();
+  }
+
+  async deleteSlotSave(n: number) {
+    await deleteSlot(n);
+    await this.refreshSlots();
   }
 
   async quitToMenu() {
     this.game = null;
-    this.ui = { ...this.ui, phase: 'start', hasSave: await hasSave(), screen: 'inbox' };
-    this.emit();
+    this.ui = { ...this.ui, phase: 'start', screen: 'inbox', draft: undefined };
+    await this.refreshSlots();
   }
 
   // Run a synchronous mutation on the game, then persist and re-render.

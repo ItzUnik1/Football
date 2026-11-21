@@ -79,7 +79,7 @@ export function monthlyDevelopment(g: Game): void {
     if (gap <= 0) pUp *= 0.25;
     else pUp *= clamp(0.4 + gap / 12, 0.4, 1.4);
     pUp *= 0.65 + tl * 0.1 + pro * 0.3 + playBonus * 0.35;
-    if (p.academy) pUp *= (club?.youthLevel ? 0.6 + (club.youthLevel ?? 3) * 0.1 : 0.8) * staffEff(club ?? undefined, 'youth_coach');
+    if (p.academy) pUp *= (club?.youthLevel ? 0.6 + (club.youthLevel ?? 3) * 0.1 : 0.8) * staffEff(club ?? undefined, 'youth_coach') * (0.85 + (club?.manager?.youth ?? 10) * 0.015);
     if (chance(pUp)) {
       let key: AttrKey;
       let f = p.focus ?? 'auto';
@@ -164,7 +164,7 @@ export function dailyUserTraining(g: Game, session: SessionType): void {
   }
   void physEff;
   const asst = staffEff(club, 'assistant');
-  if (session === 'Tactical') tr.familiarity = clamp(tr.familiarity + 3 * im * asst, 0, 100);
+  if (session === 'Tactical') tr.familiarity = clamp(tr.familiarity + 3 * im * asst * (0.85 + (club.manager?.tactical ?? 10) * 0.015), 0, 100);
   else if (session === 'Set pieces' || session === 'Attacking' || session === 'Defending') tr.familiarity = clamp(tr.familiarity + 1 * im, 0, 100);
   else tr.familiarity = clamp(tr.familiarity - 0.15, 0, 100);
   tr.log.unshift({ date: gameNow(g), session, note: `${session} (${tr.intensity})` });

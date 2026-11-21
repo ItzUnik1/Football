@@ -18,8 +18,8 @@ class TouchlineDB extends Dexie {
   tx!: Table<Tx, string>;
   kv!: Table<KvRow, string>;
 
-  constructor() {
-    super('touchline');
+  constructor(name = 'touchline') {
+    super(name);
     // Phase 1 schema - kept so existing saves upgrade in place.
     this.version(1).stores({
       meta: 'key', clubs: 'id', players: 'id, clubId, pos', fixtures: 'id, week', messages: 'id, week, category, read', reports: 'fixtureId', tx: 'id, week',
@@ -31,7 +31,44 @@ class TouchlineDB extends Dexie {
   }
 }
 
-export const db = new TouchlineDB();
+// ---- Save slots: one IndexedDB database per slot. Slot 1 keeps the original name so older saves are found. ----
+export const SLOT_COUNT = 6;
+const slotName = (n: number): string => (n === 1 ? 'touchline' : `touchline_s${n}`);
+const dbs = new Map<number, TouchlineDB>();
+let slot = 1;
+export let db = new TouchlineDB(slotName(1));
+dbs.set(1, db);
+const dbFor = (n: number): TouchlineDB => { let d = dbs.get(n); if (!d) { d = new TouchlineDB(slotName(n)); dbs.set(n, d); } return d; };
+/** Switches the active save slot. The diff snapshot belongs to one slot, so it is reset. */
+export function setSlot(n: number): void {
+  if (n < 1 || n > SLOT_COUNT) throw new Error('Invalid save slot');
+  slot = n; db = dbFor(n); snap = null;
+}
+export const getSlot = (): number => slot;
+
+export interface SlotInfo { slot: number; used: boolean; manager?: string; club?: string; season?: number; date?: number; league?: string; version?: number }
+/** Reads a short description of every slot without loading a whole career. */
+export async function slotSummaries(): Promise<SlotInfo[]> {
+  const out: SlotInfo[] = [];
+  for (let n = 1; n <= SLOT_COUNT; n++) {
+    try {
+      if (n !== 1 && !(await Dexie.exists(slotName(n)))) { out.push({ slot: n, used: false }); continue; }
+      const d = dbFor(n);
+      const m = await d.meta.get('meta');
+      if (!m) { out.push({ slot: n, used: false }); continue; }
+      const club = await d.clubs.get(m.userClubId);
+      const car = (await d.kv.get('career'))?.value as { name?: string } | undefined;
+      const lg = (await d.kv.get('leagues'))?.value as Record<string, { name: string }> | undefined;
+      out.push({ slot: n, used: true, manager: car?.name ?? club?.manager?.name, club: club?.name, season: m.season, date: m.date, league: lg?.[club?.leagueId ?? 'L1']?.name, version: m.version });
+    } catch { out.push({ slot: n, used: false }); }
+  }
+  return out;
+}
+export async function deleteSlot(n: number): Promise<void> {
+  const d = dbFor(n);
+  await d.transaction('rw', [d.meta, d.clubs, d.players, d.fixtures, d.messages, d.reports, d.tx, d.kv], async () => { await Promise.all([d.meta, d.clubs, d.players, d.fixtures, d.messages, d.reports, d.tx, d.kv].map((t) => (t as Table).clear())); });
+  if (n === slot) snap = null;
+}
 export const TABLES = () => [db.meta, db.clubs, db.players, db.fixtures, db.messages, db.reports, db.tx, db.kv];
 
 const KV_KEYS = ['leagues', 'history', 'scouting', 'board', 'training', 'events', 'installments', 'cups', 'intl', 'career', 'mgrs', 'news', 'media', 'staffWorld'] as const;

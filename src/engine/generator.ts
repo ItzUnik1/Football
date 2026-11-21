@@ -1,5 +1,5 @@
 import type { Agent, Club, League, Personality, Player, Pos } from './types';
-import { CLUB_DEFS, LEAGUE_DEFS, MANAGER_FIRST, MANAGER_LAST, MANAGER_STYLES, NATIONS, lowerClubDefs, type ClubDef } from './names';
+import { CLUB_DEFS, premierDefs, setRealNames, LEAGUE_DEFS, MANAGER_FIRST, MANAGER_LAST, MANAGER_STYLES, NATIONS, lowerClubDefs, type ClubDef } from './names';
 import { clamp, gauss, hash01, pick, rand, randInt, weighted } from './rng';
 import { buildAttributes, valueOf, wageFor } from './valuation';
 import { autoLineup } from './team';
@@ -137,13 +137,14 @@ export function makeLeagues(season: number, clubsByLeague: Record<string, string
   return out;
 }
 
-export function createWorld(season = 2026): { clubs: Record<string, Club>; players: Record<string, Player>; leagues: Record<string, League> } {
+export function createWorld(season = 2026, realNames = true): { clubs: Record<string, Club>; players: Record<string, Player>; leagues: Record<string, League> } {
+  setRealNames(realNames);
   usedNames.clear();
   playerCounter = 0;
   setGenDate(utc(season, 7, 1));
   const world = { clubs: {} as Record<string, Club>, players: {} as Record<string, Player> };
   const byLeague: Record<string, string[]> = { L1: [], L2: [], L3: [] };
-  CLUB_DEFS.forEach((d, i) => {
+  premierDefs().forEach((d, i) => {
     const id = `c${String(i + 1).padStart(2, '0')}`;
     buildClub(world, id, d, 1, i % 6, 'L1');
     byLeague.L1.push(id);

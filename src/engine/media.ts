@@ -113,7 +113,8 @@ export function answerPress(g: Game, msgId: string, choiceId: string): { ok: boo
   const squad = squadOf(g, user);
   let effect = '';
   const rel = (d: number) => { m.relationship = clamp(m.relationship + d, 0, 100); };
-  const mor = (pl: Player, d: number) => { pl.morale = clamp(pl.morale + d, 0, 100); };
+  const motiv = 0.75 + (g.career?.motivation ?? 12) / 24; // 0.8 .. 1.6: a motivating manager's words land harder
+  const mor = (pl: Player, d: number) => { pl.morale = clamp(pl.morale + (d > 0 ? d * motiv : d / Math.max(0.8, motiv * 0.8)), 0, 100); };
   switch (a.topic + ':' + choiceId) {
     case 'pre:confident': (m.pending ?? []).forEach((x) => { if (!x.stance) x.stance = 'confident'; }); squad.forEach((pl) => mor(pl, 1.5)); effect = 'Squad lifted. The press will hold you to it.'; break;
     case 'pre:cautious': (m.pending ?? []).forEach((x) => { if (!x.stance) x.stance = 'cautious'; }); rel(0.5); effect = 'A safe answer.'; break;

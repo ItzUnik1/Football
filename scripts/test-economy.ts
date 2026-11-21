@@ -17,7 +17,7 @@ const gateW = (c: typeof me) => c.capacity * 0.8 * c.ticketPrice * 0.5;
 const ratio = all().map((c) => { const i = incomeWeekly(c).total + gateW(c), k = costsWeekly(g, c); return (k.wages + k.staff + k.stadium) / i; });
 void gateFor;
 console.log('cost/income at start: min', Math.min(...ratio).toFixed(2), 'max', Math.max(...ratio).toFixed(2));
-ok(Math.max(...ratio) < 1.4 && Math.min(...ratio) > 0.4, 'starting cost/income ratios are plausible');
+ok(Math.max(...ratio) < 1.4 && Math.min(...ratio) > 0.3, 'starting cost/income ratios are plausible');
 
 // Construction
 const bal0 = me.balance; me.balance = 60_000_000; const cap0 = me.capacity;

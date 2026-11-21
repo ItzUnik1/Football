@@ -19,7 +19,14 @@ const txt = async (sel) => (await page.locator(sel).first().innerText().catch(()
 try {
   await page.goto('http://localhost:4173/');
   await page.getByText('New Career').first().click();
+  await page.waitForSelector('text=Create your manager');
+  await shot('00-profile');
+  await page.locator('input').first().fill('Test Manager');
+  await page.getByRole('button', { name: 'Former professional' }).click();
+  await page.getByRole('button', { name: 'Possession-based' }).click();
+  await page.getByRole('button', { name: 'Choose a club' }).click();
   await page.waitForSelector('text=Select your club');
+  ok((await page.locator('body').innerText()).includes('Arsenal'), 'real club names shown');
   await shot('01-select');
   await page.getByRole('button', { name: 'Champ.' }).click();
   await page.getByRole('button', { name: 'Premier' }).click();

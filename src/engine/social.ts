@@ -67,7 +67,7 @@ export function socialWeekly(g: Game): void {
       p.ptExp = Math.round(((p.ptExp ?? 0) * 0.8 + (actual - expected) * 0.2) * 1000) / 1000;
       if (p.ptExp < -0.3 && p.age >= 21) p.morale = clamp(p.morale - 1.5, 0, 100);
       // leaders spread mood
-      p.morale = clamp(p.morale + (leadMood - 60) * 0.015, 0, 100);
+      p.morale = clamp(p.morale + (leadMood - 60) * 0.015 + (c.id === user ? ((g.career?.motivation ?? 12) - 12) * 0.04 : 0), 0, 100);
       // a departed friend hurts
       if (p.friends?.length) {
         const gone = p.friends.filter((f) => g.players[f]?.clubId !== p.clubId);
