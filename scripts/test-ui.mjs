@@ -57,10 +57,13 @@ try {
   const d1 = await txt('header .font-bold');
   ok(d1 !== dateBefore, `CONTINUE advanced the date (${dateBefore} -> ${d1})`);
   // Walk through screens
-  for (const [grp, tabs] of [['Squad', ['Players', 'Tactics', 'Training', 'Medical', 'Academy']], ['Leagues', ['League', 'Fixtures', 'Stats']], ['Transfers', ['Market', 'Scouting']], ['Club', ['Overview', 'Board', 'Finances', 'History']]]) {
+  for (const [grp, tabs] of [['Squad', ['Players', 'Tactics', 'Training', 'Medical', 'Academy']], ['Leagues', ['League', 'Fixtures', 'Cup', 'Stats']], ['World', ['International', 'News', 'Records']], ['Transfers', ['Market', 'Scouting']], ['Club', ['Overview', 'Board', 'Finances', 'Stadium', 'Facilities', 'Staff', 'History']], ['Manager', ['Career', 'Media']]]) {
     await page.locator('nav').getByText(grp, { exact: true }).click();
     for (const t of tabs) { await page.getByRole('button', { name: t, exact: true }).first().click(); await page.waitForTimeout(150); await shot(`10-${grp}-${t}`); }
   }
+  await page.locator('nav').getByText('Squad', { exact: true }).click();
+  await page.getByRole('button', { name: 'Tactics', exact: true }).first().click();
+  for (const t of ['Instructions', 'Roles', 'Lineup']) { await page.getByRole('button', { name: t, exact: true }).first().click(); await page.waitForTimeout(150); await shot(`12-tactics-${t}`); }
   // Play until first match day and simulate
   await page.locator('nav').getByText('Home', { exact: true }).click();
   let sim = false;

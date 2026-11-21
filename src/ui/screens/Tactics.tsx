@@ -184,9 +184,9 @@ export function TacticsScreen() {
 
         {tab === 'instr' && (
           <div className="flex-1 min-h-0 scroll-y flex flex-col gap-1.5">
-            <Panel title="Presets"><div className="p-1.5 flex flex-wrap gap-1">{PRESETS.map((p) => <button key={p.id} className="btn btn-sm" onClick={() => store.mutate(() => { applyPreset(me as Club, p.id); me.style = styleFromInstr(me.instr!); })}>{p.name}</button>)}</div></Panel>
-            <Panel title="Mentality"><div className="p-1.5 flex gap-1">{MENTALITIES.map((m) => <button key={m} className={`btn btn-sm flex-1 ${me.mentality === m ? 'btn-primary' : ''}`} onClick={() => store.mutate(() => { me.mentality = m as Mentality; })}>{MENTALITY_LABEL[m]}</button>)}</div></Panel>
-            <Panel title="Shape and tempo">
+            <Panel title="Presets" className="shrink-0"><div className="p-1.5 flex flex-wrap gap-1">{PRESETS.map((p) => <button key={p.id} className="btn btn-sm" onClick={() => store.mutate(() => { applyPreset(me as Club, p.id); me.style = styleFromInstr(me.instr!); })}>{p.name}</button>)}</div></Panel>
+            <Panel title="Mentality" className="shrink-0"><div className="p-1.5 flex gap-1">{MENTALITIES.map((m) => <button key={m} className={`btn btn-sm flex-1 ${me.mentality === m ? 'btn-primary' : ''}`} onClick={() => store.mutate(() => { me.mentality = m as Mentality; })}>{MENTALITY_LABEL[m]}</button>)}</div></Panel>
+            <Panel title="Shape and tempo" className="shrink-0">
               <div className="p-1.5 space-y-1">
                 {([['press', 'Pressing', LEVEL, 'High press wins the ball early but tires players.'], ['line', 'Defensive line', LINE, 'High line squeezes play but risks balls in behind.'], ['tempo', 'Tempo', LEVEL, 'Fast tempo means more chances and more fatigue.'], ['width', 'Width', LEVEL, 'Wide play stretches defences and creates crosses.']] as const).map(([k, label, names, hint]) => (
                   <div key={k} className="flex items-center gap-2"><div className="w-20 shrink-0 text-[10px] uppercase tracking-wider text-slate-400" title={hint}>{label}</div>
@@ -195,7 +195,7 @@ export function TacticsScreen() {
                 ))}
               </div>
             </Panel>
-            <Panel title="Approach">
+            <Panel title="Approach" className="shrink-0">
               <div className="p-1.5 space-y-1">
                 <div className="flex items-center gap-2"><div className="w-20 shrink-0 text-[10px] uppercase tracking-wider text-slate-400">Passing</div><div className="flex gap-1 flex-1">{(['short', 'mixed', 'long'] as const).map((x) => <button key={x} className={`btn btn-sm flex-1 capitalize ${instr.passing === x ? 'btn-primary' : ''}`} onClick={() => setInstr({ passing: x })}>{x}</button>)}</div></div>
                 <div className="flex items-center gap-2"><div className="w-20 shrink-0 text-[10px] uppercase tracking-wider text-slate-400">Counter</div><div className="flex gap-1 flex-1">{[false, true].map((x) => <button key={String(x)} className={`btn btn-sm flex-1 ${instr.counter === x ? 'btn-primary' : ''}`} onClick={() => setInstr({ counter: x })}>{x ? 'Counter-attack' : 'Hold shape'}</button>)}</div></div>

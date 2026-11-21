@@ -47,7 +47,49 @@ npm run android:debug  # vite build + cap sync + gradle assembleDebug
 
 Regenerate launcher icon and splash screens with `npm run assets` (needs Python + Pillow).
 
-## Phase 2 (current)
+## Phase 3 (current)
+
+- **Domestic cup** (Touchline Cup): 56 clubs enter round 1 (4 byes), six knockout rounds on Wednesdays, draws three days ahead,
+  extra time and penalty shoot-outs, prize money, cup stats and a bracket screen.
+- **International football:** 14 national teams (one per nationality), Elo rankings, friendlies, a 6-matchday qualifying table and a
+  12-team tournament (World Cup / Continental Championship alternate every other summer) with groups, quarter-finals, semi-finals and final.
+  AI nations call up the best available players; the user can manage a nation alongside the club job (squad call-ups, lineup, tactics).
+- **Advanced tactics:** five mentalities, pressing, defensive line, tempo, width, passing style, counter-attack, set-piece and corner
+  routines, 24 player roles with suitability, presets and tactical familiarity (training and repeat use build it, changes cost it).
+  The match report has a Tactics tab explaining which factors decided the game.
+- **Manager career:** reputation (clubs and international), experience, history, trophies, achievements, tactical identity, contracts,
+  extensions, resignation, dismissal, a vacancy market with interviews, job offers in the inbox. AI managers are hired, sacked and poached.
+- **Media and news:** pre/post-match interviews, transfer questions and promises with real consequences (morale, asking prices,
+  press relationship, broken promises), plus a world news feed (bounded to 300 items).
+- **Economy:** TV, sponsor, kit, merchandise, season tickets, ticket pricing and attendance, instalments, interest on debt, points
+  deductions for deep debt, weekly projection, club owner profiles that steer AI recruitment.
+- **Stadium, facilities, staff:** construction projects with real costs, durations and planning limits; nine staff roles with attributes,
+  wages and contracts that change training, injuries, scouting, youth intake and match preparation. AI clubs hire and invest too.
+- **Relationships and contracts:** hierarchy, leadership group, friendships, rivalries, dressing-room harmony, playing-time expectations,
+  transfer requests, expiry notices (180/90/30 days), appearance/goal/clean-sheet/loyalty bonuses and scheduled wage rises.
+- **Scouting:** regional and global assignments, report accuracy from scouts and network level, personality and tactical-suitability notes,
+  signing recommendations and a shortlist comparison.
+- **History:** champions, cup winners, international champions, all-time scorers, season records, transfer records and manager records (all bounded).
+- **Saves:** Phase 1 and Phase 2 careers migrate automatically (`migrateToV2`, `migrateToV3` in `src/engine/migrate.ts`).
+
+### Tests
+
+```bash
+npm test    # engine, tactics, cups, international, managers, economy, Phase 3 interactions, persistence, migration (Phase 1 -> 3)
+npm run build && node scripts/test-ui.mjs   # headless landscape UI walk through every screen, match, reload
+```
+
+### Known limitations
+
+- **No continental club competition.** The world has a single country's league structure and only 14 nationalities, so
+  international *national-team* tournaments exist but club tournaments across countries do not.
+- Only 14 national teams exist (one per nationality in the database); qualification is a single table rather than regional groups.
+- Players are fictional; no real-player import.
+- The APK is a debug build signed with a fixed, committed debug key. Builds from Phase 2 onward share that key and update each other.
+  The APK has been built in CI and the web UI tested in a headless browser, but installation on a physical Android device has not been verified.
+- One career save slot. No multiplayer or online features.
+
+## Phase 2
 
 - **Calendar:** every match has a real date (2026/27 starts 1 Aug 2026). Time advances day by day (Continue, +1 day, +3 days, +1 week,
   to next match). Matches are played on their scheduled day; all other leagues' matches are simulated on their dates.
@@ -62,18 +104,3 @@ Regenerate launcher icon and splash screens with `npm run assets` (needs Python 
   (you can be dismissed and take another job), **history** (season reviews, awards, club records).
 - **Inbox** is the first menu item. While you are on the Inbox, the main button reads the next unread message instead of advancing time.
 - **Saves:** Phase 1 careers are migrated automatically on first load (see `src/engine/migrate.ts`, tested by `scripts/test-migration.ts`).
-
-### Tests
-
-```bash
-npm test                      # engine (2 full seasons, 3 leagues), persistence (incl. rollover), Phase 1 -> Phase 2 migration
-npm run build && node scripts/test-ui.mjs   # headless landscape UI smoke test (needs Playwright + Chromium)
-```
-
-### Known limitations
-
-- The APK is a debug build signed with a fixed, committed debug key. Builds from Phase 2 onward share that key and update each other.
-  The Phase 1 APK was signed with a throwaway key, so Android will refuse to install Phase 2 over it: uninstall Phase 1 once.
-  (Uninstalling deletes the on-device save; the Phase 1 -> Phase 2 save migration therefore only applies to web/PWA saves or future updates.)
-- The APK has been built in CI and the web UI tested in a headless browser, but installation on a physical Android device has not been verified.
-- One career save slot. No cup competitions, international football, press conferences or multiplayer.
