@@ -4,6 +4,7 @@ import { chance, clamp, rand, randInt, pick } from './rng';
 import { computeOvr, valueOf } from './valuation';
 import { squadOf } from './team';
 import { staffEff } from './staff';
+import { addNews } from './news';
 import { dayDiff, weekday, fmtDate } from './calendar';
 
 type AttrKey = 'passing' | 'dribbling' | 'shooting' | 'finishing' | 'tackling' | 'handling' | 'pace' | 'stamina' | 'strength' | 'jumping' | 'vision' | 'composure' | 'positioning' | 'workrate';
@@ -55,6 +56,7 @@ export function injure(g: Game, p: Player, days: number, type: string): void {
   p.fitness = Math.max(40, p.fitness - 10);
   (p.injuries ??= []).push({ date: gameNow(g), type, days });
   if (p.injuries.length > 12) p.injuries.shift();
+  if (p.ovr >= 76 && days >= 21) addNews(g, 'injury', `${p.name} out for ${days} days (${type.toLowerCase()})`, { playerId: p.id, clubId: p.clubId ?? undefined });
 }
 
 // ---------- Monthly development ----------

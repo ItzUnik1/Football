@@ -5,6 +5,8 @@ import { simulateMatch, type TeamSheet } from './match';
 import { aiTactics, instrOf, signatureChangeCost, tacticSignature } from './tactics';
 import { aiSelectTeam, bestLineupScore, invalidateIndex, repairLineup, squadOf, squadStrength, validateLineup, wageBill } from './team';
 import { matchdayRevenue, weeklyEcon, econMonthly } from './econ';
+import { payBonuses, socialWeekly, initSocial, chemistry } from './social';
+import { pressAfterMatch, pressDaily, newsWeekly } from './media';
 import { staffMonthly, staffEff, staffAbility } from './staff';
 import { addMessage, gameNow, nextUnread, unreadCount } from './messages';
 import { aiFinance, aiLoanRound, aiRenewals, aiTransferRound } from './ai';
@@ -115,7 +117,7 @@ function sheetFor(g: Game, club: Club, home: boolean): TeamSheet {
   return {
     clubId: club.id, name: club.name, formation: club.formation, mentality: club.mentality, style: club.style,
     xi: club.lineup.map((id) => g.players[id]), bench: club.bench.map((id) => g.players[id]), captainId: club.captainId, home,
-    familiarity: isUser ? g.training.familiarity : aiFamiliarity(g, club), medical: clamp(Math.round((club.medicalLevel ?? 3) * 0.5 + staffEff(club, 'physio') * 3), 1, 5), analyst: Math.round(staffAbility(club, 'analyst')),
+    familiarity: clamp((isUser ? g.training.familiarity : aiFamiliarity(g, club)) + chemistry(g, club.id), 0, 100), medical: clamp(Math.round((club.medicalLevel ?? 3) * 0.5 + staffEff(club, 'physio') * 3), 1, 5), analyst: Math.round(staffAbility(club, 'analyst')),
     instr: instrOf(club), roles: club.roles, managerQ: club.manager.tactical ?? 10,
   };
 }
@@ -160,6 +162,7 @@ export function applyPlayerResults(g: Game, report: MatchReport, hurtOut: Set<st
     p.fitness = clamp(p.fitness - drop, 20, 100);
     p.morale = clamp(p.morale + (won ? 3 : lost ? -3 : 0) + (pm.goals ? 2 : 0) + (pm.rating >= 8 ? 1.5 : 0) + (p.promisedStart && pm.started ? 4 : 0), 15, 100);
     if (p.promisedStart && pm.started) p.promisedStart = false;
+    if (comp !== 'intl') payBonuses(g, p, pm, conceded);
     p.benchStreak = 0;
     if (pm.yellow > 0) {
       p.yellowCount += pm.yellow;
@@ -218,7 +221,7 @@ export function playFixtures(g: Game, t: number, includeUser: boolean): MatchRep
   // Bench streak for the user's squad
   if (userReport) for (const p of squadOf(g, user)) if (!played.has(p.id)) { p.benchStreak++; p.morale = clamp(p.morale - 0.5, 15, 100); }
   g.meta.week = userRound(g);
-  if (userReport) { recordUserMatch(g, userReport); postMatchMessages(g, userReport, [...hurt]); }
+  if (userReport) { recordUserMatch(g, userReport); postMatchMessages(g, userReport, [...hurt]); const uf = userFix[userFix.length - 1]; if (uf) pressAfterMatch(g, userReport, uf); }
   return userReport;
 }
 
@@ -322,6 +325,7 @@ function endDay(g: Game): void {
   const mt = userFixtureToday(g);
   const mtm = g.fixtures.some((f) => f.date === addDays(t, 1) && (f.home === me || f.away === me));
   dailyUserTraining(g, sessionFor(g, t, !!mt, mtm));
+  pressDaily(g, g.fixtures.find((f) => !f.played && f.date === addDays(t, 1) && (f.home === me || f.away === me)));
   scoutingTick(g);
   processInstalments(g);
   phase3Daily(g);
@@ -366,6 +370,8 @@ function weeklyTick(g: Game): void {
   const me = userClub(g);
   const n = gameNow(g);
   weeklyEcon(g);
+  newsWeekly(g);
+  socialWeekly(g);
   aiFinance(g);
   weeklyDressingRoom(g);
   weeklyBoard(g);
@@ -420,6 +426,7 @@ function monthlyTick(g: Game): void {
   monthlyDevelopment(g);
   mgrMonthly(g);
   staffMonthly(g);
+  initSocial(g);
   econMonthly(g);
   const p = parts(gameNow(g));
   if (p.m === 11 || p.m === 3) aiRenewals(g);

@@ -1,4 +1,4 @@
-import type { Club, Game, Player, Pos, SquadRole } from './types';
+import type { ContractBonuses, Club, Game, Player, Pos, SquadRole } from './types';
 import { MAX_SQUAD, MIN_SQUAD, invalidateIndex, repairLineup, squadOf, wageBill } from './team';
 import { fmtMoney, repNeeded, valueOf, wageFor } from './valuation';
 import { hash01, chance } from './rng';
@@ -32,7 +32,7 @@ export function askingPrice(g: Game, p: Player): number {
   if (p.contractYears <= 1) f *= 0.85;
   if (p.listed) f *= 0.9;
   if ((p.personality?.loyalty ?? 0) >= 17 && !p.listed) f *= 1.08; // loyal players are harder to prise away
-  return Math.max(50000, roundTo(p.value * f, 50000));
+  return Math.max(50000, roundTo(p.value * f * pressPriceFactor(g, p.id), 50000));
 }
 
 export const loanFeeFor = (p: Player): number => roundTo(p.value * 0.06, 25000);
@@ -151,6 +151,10 @@ function dropFromSelections(club: Club, pid: string): void {
   if (club.captainId === pid) club.captainId = '';
 }
 
+import { pressPriceFactor } from './media';
+import { bonusExpected } from './social';
+import { recordTransfer } from './records';
+import { addNews } from './news';
 export function executeDeal(g: Game, d: Deal): { ok: boolean; error?: string } {
   const errs = validateDeal(g, d);
   if (errs.length) return { ok: false, error: errs[0] };
@@ -222,6 +226,7 @@ export function executeDeal(g: Game, d: Deal): { ok: boolean; error?: string } {
   p.benchStreak = 0; p.promisedStart = false; p.recentMinutes = 0;
   invalidateIndex(g);
 
+  if (!loan && d.fee > 0) recordTransfer(g, p.name, seller?.name ?? 'Free agent', buyer.name, d.fee, seasonOf(now));
   // Records for the user's club
   if (!loan && d.fee > 0) {
     if (buyer.id === user) { const r = clubRecords(g, user); if (!r.recordSigning || d.fee > r.recordSigning.fee) r.recordSigning = { name: p.name, fee: d.fee, season: seasonOf(now) }; }
@@ -243,7 +248,9 @@ export function executeDeal(g: Game, d: Deal): { ok: boolean; error?: string } {
         : `${p.name} has ${loan ? 'joined' : 'been sold to'} ${buyer.name}${loan ? ' on loan' : ''}. We received ${fmtMoney(firstPay)}${n > 1 ? ` now (of ${fmtMoney(d.fee)})` : ''}. Our wage bill falls by ${fmtMoney(p.wage)}/wk.${extras ? `\n${extras}.` : ''}`,
       action: incoming ? { kind: 'goto', screen: 'squad', playerId: p.id } : undefined,
     });
-  } else if (d.fee >= 15_000_000) {
+  }
+  if (d.fee >= 8_000_000 || (buyer.id === user || seller?.id === user)) addNews(g, 'transfer', `${p.name} ${loan ? 'joins' : 'signs for'} ${buyer.name}${loan ? ' on loan' : ''}${d.fee ? ` (${fmtMoney(d.fee)})` : ''}`, { playerId: p.id, clubId: buyer.id, imp: d.fee >= 40_000_000 ? 2 : 1 });
+  if (!(buyer.id === user || seller?.id === user) && d.fee >= 15_000_000) {
     addMessage(g, {
       category: 'Transfers', from: 'Press Office',
       subject: `Transfer news: ${p.name} to ${buyer.name}`,
@@ -414,7 +421,7 @@ export function proposeSale(g: Game, playerId: string, buyerId: string, fee: num
 }
 
 // ---------- Contract renewals ----------
-export interface RenewOpts { role?: SquadRole; releaseClause?: number | null }
+export interface RenewOpts { role?: SquadRole; releaseClause?: number | null; bonuses?: ContractBonuses }
 export function negotiateRenewal(g: Game, playerId: string, wage: number, years: number, opts: RenewOpts = {}): { status: Status; counterWage?: number; message: string; done: boolean } {
   const p = g.players[playerId];
   const club = p?.clubId ? g.clubs[p.clubId] : null;
@@ -428,7 +435,8 @@ export function negotiateRenewal(g: Game, playerId: string, wage: number, years:
   if (p.wantsMove) demand *= 1.2;
   demand = roundTo(demand, 100);
   const agent = agentFeeFor(p, wage, years) * 0.5;
-  if (wage >= demand) {
+  const bonusValue = opts.bonuses ? bonusExpected(opts.bonuses, p) * 0.6 + (opts.bonuses.wageRise ? wage * opts.bonuses.wageRise * 0.004 : 0) : 0;
+  if (wage + bonusValue >= demand) {
     if (agent > club.balance) return { status: 'rejected', message: 'The club cannot afford the agent fee.', done: false };
     const now = gameNow(g);
     p.wage = wage; p.contractYears = years; p.contractEnd = contractEndFor(now, years);
@@ -436,6 +444,7 @@ export function negotiateRenewal(g: Game, playerId: string, wage: number, years:
     p.morale = Math.min(100, p.morale + 6);
     p.wantsMove = false;
     if (opts.role) p.role = opts.role;
+    if (opts.bonuses) p.bonuses = opts.bonuses;
     if (opts.releaseClause !== undefined) p.releaseClause = opts.releaseClause ?? undefined;
     club.balance -= agent;
     if (club.id === g.meta.userClubId) {

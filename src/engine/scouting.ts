@@ -45,7 +45,8 @@ export function assignScout(g: Game, scoutId: string, spec: AssignSpec): string 
   if (!s || !s.hired) return 'This scout is not employed by the club.';
   if (scoutBusy(g, scoutId)) return 'This scout already has an assignment.';
   const now = gameNow(g);
-  const days = spec.kind === 'player' ? 7 : spec.kind === 'youth' ? 21 : 14;
+  if (spec.kind === 'global' && ((g.clubs[g.meta.userClubId].econ?.scoutingLevel ?? 3) < 3)) return 'Global scouting needs a level 3 scouting network (see Facilities).';
+  const days = spec.kind === 'player' ? 7 : spec.kind === 'youth' ? 21 : spec.kind === 'global' ? 28 : spec.kind === 'region' ? 18 : 14;
   g.scouting.assignments.push({ ...spec, id: `a${g.scouting.nextId++}`, scoutId, startDate: now, endDate: addDays(now, days), done: false });
   return null;
 }
@@ -64,12 +65,16 @@ function candidates(g: Game, a: Assignment): Player[] {
     case 'club': return all.filter((p) => p.clubId === a.clubId);
     case 'free': return all.filter((p) => !p.clubId);
     case 'player': return all.filter((p) => p.id === a.playerId);
+    case 'region': return all.filter((p) => p.nat === a.region && (p.clubId || !p.prospect));
+    case 'global': return all.filter((p) => p.ovr >= 64 || p.pot >= 76);
   }
 }
 
 function makeReport(g: Game, s: Scout, a: Assignment, p: Player): ScoutReport {
   const prior = g.scouting.knowledge[p.id] ?? 0;
-  const acc = clamp(Math.round(40 + s.ability * 2.2 + s.judgement * 1.2 + prior * 0.3), 30, 98);
+  const club = g.clubs[g.meta.userClubId];
+  const net = ((club.econ?.scoutingLevel ?? 3) - 3) * 3 + (staffAbility(club, 'head_scout') - 10) * 0.8;
+  const acc = clamp(Math.round(40 + s.ability * 2.2 + s.judgement * 1.2 + prior * 0.3 + net), 30, 98);
   const err = (100 - acc) / 100;
   const sd = 1 + err * 10;
   const estOvr = Math.round(p.ovr + gauss() * sd * 0.4);
@@ -80,7 +85,9 @@ function makeReport(g: Game, s: Scout, a: Assignment, p: Player): ScoutReport {
   const vc = Math.max(50000, p.value * valMul);
   const stars = clamp(Math.round(((estPot * 0.6 + estOvr * 0.4) - 45) / 9), 1, 5);
   const summary = `${p.name} (${p.age}, ${p.pos}) ${stars >= 4 ? 'is a standout talent' : stars === 3 ? 'is a useful player' : 'would be squad depth'}. ${p.age <= 21 ? `Potential looks like ${estPot - w}-${estPot + w}.` : `Current level ${estOvr - w}-${estOvr + w}.`} ${p.personality ? (p.personality.professionalism >= 15 ? 'Very professional.' : p.personality.professionalism <= 6 ? 'Questionable attitude.' : '') : ''}`.trim();
+  const extra = reportExtras(g, p, acc, stars);
   return {
+    ...extra,
     id: `r${g.scouting.nextId++}`, date: gameNow(g), scoutId: s.id, playerId: p.id, assignmentId: a.id, accuracy: acc,
     estOvr: ro(estOvr, w), estPot: ro(Math.max(estPot, estOvr), w + 1), estValue: [Math.round((vc * (1 - err * 0.4)) / 50000) * 50000, Math.round((vc * (1 + err * 0.4)) / 50000) * 50000],
     stars, summary,
@@ -138,3 +145,42 @@ export function toggleShortlist(g: Game, pid: string): void {
 }
 export type { Pos };
 void chance;
+
+import { staffAbility } from './staff';
+import { FORMATIONS, squadOf } from './team';
+import { bestRoleFor, roleSuitability } from './tactics';
+
+/** Personality, tactical suitability for the user's formation and a signing recommendation. Reliability depends on report accuracy. */
+function reportExtras(g: Game, p: Player, acc: number, stars: number): Pick<ScoutReport, 'personality' | 'role' | 'recommendation'> {
+  const club = g.clubs[g.meta.userClubId];
+  const pe = p.personality;
+  const noise = (v: number) => Math.round(v + (rand() - 0.5) * (100 - acc) * 0.25);
+  let personality = 'Unknown character.';
+  if (pe) {
+    const bits: string[] = [];
+    const pr = noise(pe.professionalism), lo = noise(pe.loyalty), am = noise(pe.ambition), le = noise(pe.leadership);
+    bits.push(pr >= 14 ? 'Professional' : pr <= 7 ? 'Unreliable' : 'Average attitude');
+    if (lo >= 15) bits.push('loyal'); else if (lo <= 6) bits.push('mercenary');
+    if (am >= 15) bits.push('very ambitious');
+    if (le >= 15) bits.push('natural leader');
+    personality = bits.join(', ') + '.';
+  }
+  const slots = FORMATIONS[club.formation].filter((s) => s.pos === p.pos);
+  let role: ScoutReport['role'];
+  if (slots.length) { const r = bestRoleFor(p, slots[0]); role = { label: r.label, fit: Math.round(roleSuitability(p, r)) }; }
+  const mine = squadOf(g, club.id).filter((q) => q.pos === p.pos).sort((a, b) => b.ovr - a.ovr);
+  const need = FORMATIONS[club.formation].filter((s) => s.pos === p.pos).length;
+  const weakest = mine[Math.min(need, mine.length) - 1]?.ovr ?? 0;
+  const est = p.ovr + (rand() - 0.5) * (100 - acc) * 0.2;
+  const recommendation = est >= weakest + 3 ? 'Sign: would improve the first team' : stars >= 4 && p.age <= 23 ? 'Sign for the future' : est >= weakest - 2 ? 'Rotation option' : 'Not needed';
+  return { personality, role, recommendation };
+}
+
+export interface CompareRow { playerId: string; name: string; age: number; pos: string; ovr: string; pot: string; value: string; role?: string; personality?: string; recommendation?: string; stars?: number }
+/** Side by side comparison of shortlisted players, honouring what the club actually knows. */
+export function comparePlayers(g: Game, ids: string[]): CompareRow[] {
+  return ids.map((id) => g.players[id]).filter(Boolean).map((p) => {
+    const v = scoutedView(g, p); const r = latestReport(g, p.id);
+    return { playerId: p.id, name: p.name, age: p.age, pos: p.pos, ovr: v.ovr, pot: v.pot, value: v.value, role: r?.role ? `${r.role.label} (${r.role.fit})` : undefined, personality: r?.personality, recommendation: r?.recommendation, stars: r?.stars };
+  });
+}

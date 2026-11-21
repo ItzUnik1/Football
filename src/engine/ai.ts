@@ -46,7 +46,10 @@ export function aiTransferRound(g: Game): { deals: number } {
       if (surplus) releaseToFreeAgents(g, surplus);
       continue;
     }
-    if (!chance(deadline ? 0.7 : 0.3)) continue;
+    const prof = club.econ?.profile ?? 'balanced';
+    const activity = prof === 'trader' ? 1.4 : prof === 'frugal' ? 0.7 : prof === 'rich' || prof === 'big' ? 1.2 : 1;
+    if (!chance((deadline ? 0.7 : 0.3) * activity * (0.8 + (club.econ?.ambition ?? 10) * 0.02))) continue;
+    const budgetCap = prof === 'frugal' ? club.transferBudget * 0.6 : club.transferBudget;
 
     // Work out the biggest need
     let bestPos: Pos = 'MF';
@@ -64,9 +67,9 @@ export function aiTransferRound(g: Game): { deals: number } {
 
     const pool = all.filter((p) => p.pos === bestPos && p.clubId !== club.id && !p.parentClubId
       && p.ovr >= (short ? weakest - 3 : weakest + 2) && p.ovr <= weakest + 9
-      && (p.clubId ? askingPrice(g, p) * 1.05 <= club.transferBudget : true));
+      && (p.clubId ? askingPrice(g, p) * 1.05 <= budgetCap : true) && !(prof === 'youth' && p.age > 27 && p.clubId));
     if (!pool.length) continue;
-    const ranked = pool.sort((a, b) => (b.ovr - b.age * 0.25) - (a.ovr - a.age * 0.25)).slice(0, 4);
+    const ranked = pool.sort((a, b) => (b.ovr - b.age * (prof === 'youth' || prof === 'trader' ? 0.6 : 0.25) + (prof === 'trader' ? (b.pot - b.ovr) * 0.3 : 0)) - (a.ovr - a.age * (prof === 'youth' || prof === 'trader' ? 0.6 : 0.25) + (prof === 'trader' ? (a.pot - a.ovr) * 0.3 : 0))).slice(0, 4);
     const target = pick(ranked);
     const wage = contractDemand(target, club);
     const years = Math.min(maxYears(target), randInt(2, 4));

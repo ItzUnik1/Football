@@ -324,8 +324,8 @@ export interface TacticalLog {
 export interface Scout { id: string; name: string; ability: number; judgement: number; nat: string; wage: number; hired: boolean }
 export interface Assignment {
   id: string; scoutId: string;
-  kind: 'position' | 'youth' | 'league' | 'club' | 'free' | 'player';
-  pos?: Pos; leagueId?: string; clubId?: string; playerId?: string; ageMax?: number;
+  kind: 'position' | 'youth' | 'league' | 'club' | 'free' | 'player' | 'region' | 'global';
+  region?: string; pos?: Pos; leagueId?: string; clubId?: string; playerId?: string; ageMax?: number;
   startDate: number; endDate: number; done: boolean;
 }
 export interface ScoutReport {
@@ -334,6 +334,7 @@ export interface ScoutReport {
   estOvr: [number, number]; estPot: [number, number]; estValue: [number, number];
   stars: number; // 1..5 recommendation
   summary: string;
+  personality?: string; role?: { label: string; fit: number }; recommendation?: string;
 }
 export interface ScoutingState {
   scouts: Scout[];

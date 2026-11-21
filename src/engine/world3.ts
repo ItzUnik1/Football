@@ -3,6 +3,8 @@ import { createCup, cupDaily } from './cups';
 import { initIntl, intlDaily, playIntlDay, rolloverIntl } from './intl';
 import { gameNow } from './messages';
 import { initManagers, rolloverManagers } from './mgr';
+import { initSocial, bonusRollover } from './social';
+import { initMedia } from './media';
 import { initStaff, staffRollover } from './staff';
 import { econDaily, econRollover, initEcon } from './econ';
 
@@ -13,6 +15,8 @@ export function initPhase3(g: Game): void {
   if (!g.cups.some((c) => c.season === g.meta.season)) g.cups.push(createCup(g, g.meta.season));
   initIntl(g);
   initManagers(g);
+  initMedia(g);
+  initSocial(g);
   initStaff(g);
   initEcon(g);
 }
@@ -32,6 +36,7 @@ export function rolloverPhase3(g: Game): void {
   for (const p of Object.values(g.players)) p.cup = undefined;
   rolloverIntl(g);
   rolloverManagers(g);
+  bonusRollover(g);
   staffRollover(g);
   econRollover(g);
   for (const l of Object.values(g.leagues)) l.penalties = {};

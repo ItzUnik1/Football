@@ -1,3 +1,4 @@
+import { recordSeasonHistory } from './records';
 import type { Game, LeagueSeason, Player, SeasonAward, SeasonRecord } from './types';
 import { computeTable } from './fixtures';
 import { makeFixtures } from './fixtures';
@@ -92,6 +93,7 @@ export function rolloverSeason(g: Game): void {
   }
   const sr: SeasonRecord = { season, leagues: lss, awards: aw, userClubId: user, userLeagueId: userLid, userPos, userPoints: userRow.points, objective: g.board.objectives[0].desc, objectiveMet: board.met };
   g.history.seasons.push(sr);
+  recordSeasonHistory(g, season);
   const ps = Object.values(g.players).filter((p) => p.clubId === user).sort((a, b) => b.stats.goals - a.stats.goals);
   if (ps[0] && ps[0].stats.goals > 0) {
     const tot = ps[0].career ? ps[0].career.goals + ps[0].stats.goals : ps[0].stats.goals;

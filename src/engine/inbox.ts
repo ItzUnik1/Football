@@ -6,6 +6,8 @@ import { activateLoanOption } from './transfers';
 import { promoteYouth, releaseYouth } from './youth';
 import { addDays } from './calendar';
 import { clamp } from './rng';
+import { acceptClubJob, acceptNationJob } from './mgr';
+import { renewStaff } from './staff';
 
 export type InboxChoice = 'accept' | 'reject' | 'counter' | 'promise' | 'ignore';
 export interface ActionResult { ok: boolean; message: string; goto?: { screen: string; playerId?: string } }
@@ -83,6 +85,19 @@ export function performAction(g: Game, msgId: string, choice: InboxChoice): Acti
     return { ok: false, message: 'Unsupported response.' };
   }
 
+  if (a.kind === 'job_offer') {
+    if (gameNow(g) > a.expires) { resolve(m, 'Offer expired'); return { ok: false, message: 'This offer has expired.' }; }
+    if (choice === 'accept') {
+      const r = a.nationId ? acceptNationJob(g, a.nationId, a.wage, a.years) : a.clubId ? acceptClubJob(g, a.clubId, { ambition: 'realistic', transfers: 'balanced', youth: false }, a.wage, a.years) : { ok: false, message: 'Unknown job.' };
+      if (r.ok) resolve(m, 'Accepted'); return r;
+    }
+    resolve(m, 'Declined'); return { ok: true, message: 'You declined the offer.' };
+  }
+  if (a.kind === 'staff_offer') {
+    if (gameNow(g) > a.expires) { resolve(m, 'Offer expired'); return { ok: false, message: 'This offer has expired.' }; }
+    if (choice === 'accept') { const r = renewStaff(g, a.staffId, 2); if (r.ok) resolve(m, 'Renewed'); return r; }
+    resolve(m, 'Let go'); return { ok: true, message: 'You will not renew him.' };
+  }
   if (a.kind === 'complaint') {
     const p = g.players[a.playerId];
     if (!p || p.clubId !== user) { resolve(m, 'No longer applicable'); return { ok: false, message: 'The player is no longer at the club.' }; }

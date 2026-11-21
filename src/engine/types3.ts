@@ -102,6 +102,8 @@ export interface MediaState {
   promises: { playerId: string; kind: 'start' | 'minutes'; date: number; until: number; kept?: boolean }[];
   statements: { playerId: string; clubId?: string; date: number; kind: 'target' | 'praise' | 'criticism' }[];
   history: { date: number; topic: string; choice: string; effect: string }[];
+  pending?: { kind: 'pre'; stance: string; fixtureId: string }[];
+  leader?: Record<string, string>; streaks?: Record<string, number>; seasonBest?: { season: number; margin: number };
 }
 
 // ---------- Staff ----------

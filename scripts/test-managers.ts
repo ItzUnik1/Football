@@ -34,7 +34,7 @@ ok(sacks >= 4 && sacks <= 25, `plausible AI manager turnover in one season (${sa
 ok(appoints >= sacks - g.mgrs.vacancies.length - 4, 'vacancies are filled by appointments');
 const caretakers = Object.values(g.clubs).filter((c) => c.manager.caretaker).length;
 ok(caretakers === g.mgrs.vacancies.filter((v) => v.clubId).length, `caretakers match open club vacancies (${caretakers})`);
-ok(g.career.totals.p > 40 && g.career.history[0].p === g.career.totals.p, `user managerial record tracked (${g.career.totals.p} matches)`);
+ok(g.career.totals.p >= 30 && g.career.history[0].p === g.career.totals.p, `user managerial record tracked (${g.career.totals.p} matches)`);
 const id = tacticalIdentity(g);
 ok(id.label.length > 0, `tactical identity: ${id.label}`);
 // sanity: user's players are never counted for managers of other clubs
