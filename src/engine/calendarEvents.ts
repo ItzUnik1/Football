@@ -1,6 +1,7 @@
 import type { Game } from './types';
 import { addDays, dayDiff, DAY, fmtDateShort, parts, seasonOf, utc, weekday, windowInfo } from './calendar';
 import { sessionFor } from './development';
+import { CUP_ROUND_NAMES } from './cups';
 
 export type CalCat = 'match' | 'transfer' | 'training' | 'medical' | 'contract' | 'board' | 'club' | 'scouting' | 'youth' | 'league';
 export const CAL_COLORS: Record<CalCat, string> = {
@@ -24,10 +25,19 @@ export function eventsBetween(g: Game, from: number, to: number): CalEvent[] {
     out.push({
       id: 'f' + f.id, date: f.date, cat: 'match',
       title: `${f.home === me ? 'vs' : 'at'} ${opp.short}${f.played ? ` ${f.home === me ? f.hg : f.ag}-${f.home === me ? f.ag : f.hg}` : ''}`,
-      detail: `${g.leagues[f.leagueId ?? 'L1']?.name ?? 'League'}, round ${f.week}: ${g.clubs[f.home].name} ${f.played ? `${f.hg}-${f.ag}` : 'v'} ${g.clubs[f.away].name}`,
+      detail: `${f.comp === 'cup' ? `Cup - ${CUP_ROUND_NAMES[f.round ?? 0]}` : `${g.leagues[f.leagueId ?? 'L1']?.name ?? 'League'}, round ${f.week}`}: ${g.clubs[f.home].name} ${f.played ? `${f.hg}-${f.ag}` : 'v'} ${g.clubs[f.away].name}`,
       ref: { screen: 'match', fixtureId: f.id },
     });
   }
+  // International fixtures of the user's nation, and construction milestones
+  const un = g.intl?.userNation;
+  if (un) for (const f of g.intl.fixtures) {
+    if (f.date < from || f.date > to || (f.home !== un && f.away !== un)) continue;
+    const n = g.intl.nations;
+    out.push({ id: 'i' + f.id, date: f.date, cat: 'match', title: `${n[un].code}: ${f.home === un ? 'vs' : 'at'} ${n[f.home === un ? f.away : f.home].code}${f.played ? ` ${f.hg}-${f.ag}` : ''}`, detail: `International (${f.comp}): ${n[f.home].name} ${f.played ? `${f.hg}-${f.ag}` : 'v'} ${n[f.away].name}`, ref: { screen: 'international' } });
+  }
+  const k = g.clubs[me].econ?.construction;
+  if (k && k.ready >= from && k.ready <= to) out.push({ id: 'k' + k.ready, date: k.ready, cat: 'club', title: `Construction complete`, detail: k.label, ref: { screen: 'stadium' } });
   // Transfer window open / deadline
   for (let i = 0; i <= days; i++) {
     const t = addDays(from, i);

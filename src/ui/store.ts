@@ -8,7 +8,8 @@ export type Screen =
   | 'squad' | 'tactics' | 'training' | 'medical' | 'academy'
   | 'league' | 'fixtures' | 'stats'
   | 'transfers' | 'scouting'
-  | 'club' | 'board' | 'finances' | 'history';
+  | 'club' | 'board' | 'finances' | 'history'
+  | 'cups' | 'international' | 'news' | 'records' | 'stadium' | 'facilities' | 'staff' | 'manager' | 'media';
 
 /** Maps ids used by messages / older code onto real screens. */
 export const normalizeScreen = (s: string): Screen => {
@@ -25,6 +26,8 @@ export interface UiState {
   newSeason?: boolean;
   calMonth?: number;
   reportId?: string;
+  tacticsFor?: 'club' | 'nation';
+  tab?: Record<string, string>;
   toast?: { text: string; kind: 'ok' | 'bad'; id: number };
   hasSave: boolean;
   saving: boolean;

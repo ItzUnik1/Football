@@ -9,6 +9,10 @@ import { squadOf } from '../../engine/team';
 import { fmtMoney } from '../../engine/valuation';
 import { unreadCount } from '../../engine/messages';
 import { ordinal } from '../../engine/board';
+import { cupProgress } from '../../engine/cups';
+import { nationSummary } from '../../engine/intl';
+import { tacticalIdentity } from '../../engine/mgr';
+import { harmony } from '../../engine/social';
 
 export function HomeScreen() {
   const { g, v } = useStore();
@@ -32,6 +36,10 @@ export function HomeScreen() {
   const days = next?.date !== undefined ? dayDiff(date, next.date) : null;
   const matchToday = !!today && !today.played;
   const board = g!.board;
+  const cup = cupProgress(g!, me.id);
+  const nat = g!.intl?.userNation ? g!.intl.nations[g!.intl.userNation] : undefined;
+  const natNext = nat ? nationSummary(g!, nat.id).next : undefined;
+  const wages = squad.reduce((s2, p) => s2 + p.wage, 0);
 
   return (
     <div className="h-full grid grid-cols-[1.2fr_1fr_1fr] gap-2 fade-in">
@@ -62,9 +70,13 @@ export function HomeScreen() {
             {row && <FormChips form={row.form} />}
           </div>
         </Panel>
+        <Panel title="Latest news" className="flex-1" right={<button className="text-[10px] text-accent2 underline" onClick={() => store.go('news')}>All news</button>}>
+          <div className="scroll-y h-full">{g!.news.slice(-6).reverse().map((n) => <div key={n.id} className="px-2 py-0.5 border-b border-line/40 text-[11px] flex gap-1.5"><span className="text-slate-500 w-10 shrink-0">{fmtDateShort(n.date)}</span><span className={`truncate ${n.imp ? 'font-bold' : ''}`}>{n.headline}</span></div>)}</div>
+        </Panel>
       </div>
 
-      <Panel title={`${lg.name}`} right={<button className="text-[10px] text-accent2 underline" onClick={() => store.go('league')}>Full table</button>}>
+      <div className="flex flex-col gap-2 min-h-0">
+      <Panel title={`${lg.name}`} className="flex-1" right={<button className="text-[10px] text-accent2 underline" onClick={() => store.go('league')}>Full table</button>}>
         <table className="w-full">
           <thead><tr><th className="th w-6">#</th><th className="th">Club</th><th className="th text-right">P</th><th className="th text-right">GD</th><th className="th text-right">Pts</th></tr></thead>
           <tbody>
@@ -78,6 +90,14 @@ export function HomeScreen() {
           </tbody>
         </table>
       </Panel>
+      <Panel title="Competitions">
+        <div className="p-2 text-[11px] space-y-1">
+          <button className="w-full flex justify-between" onClick={() => store.go('cups')}><span>Cup</span><b className={cup.status === 'out' ? 'text-slate-400' : 'text-accent'}>{cup.text}</b></button>
+          {nat && <button className="w-full flex justify-between" onClick={() => store.go('international')}><span>{nat.name}</span><b className="text-accent2">{natNext ? `next ${fmtDateShort(natNext.date)}` : `rank ${nat.rank}`}</b></button>}
+          <div className="flex justify-between text-slate-400"><span>Objective</span><span className="text-right truncate ml-2">{board.objectives[0]?.title ?? board.objectives[0]?.desc}</span></div>
+        </div>
+      </Panel>
+      </div>
 
       <div className="flex flex-col gap-2 min-h-0">
         <Panel title="Coming up" className="flex-1" right={<button className="text-[10px] text-accent2 underline" onClick={() => store.go('calendar')}>Calendar</button>}>
@@ -97,7 +117,9 @@ export function HomeScreen() {
             <button className="w-full flex justify-between" onClick={() => store.go('medical')}><span>Injured / suspended</span><b className={injured.length + banned.length ? 'text-bad' : 'text-slate-500'}>{injured.length} / {banned.length}</b></button>
             <button className="w-full flex justify-between" onClick={() => store.go('board')}><span>Board confidence</span><b className={board.confidence < 35 ? 'text-bad' : board.confidence > 65 ? 'text-accent' : ''}>{Math.round(board.confidence)}%</b></button>
             <button className="w-full flex justify-between" onClick={() => store.go('finances')}><span>Balance</span><b className={me.balance < 0 ? 'text-bad' : ''}>{fmtMoney(me.balance)}</b></button>
-            <div className="text-[10px] text-slate-500 pt-0.5">{fmtDate(date)} - budget {fmtMoney(me.transferBudget)}</div>
+            <button className="w-full flex justify-between" onClick={() => store.go('manager')}><span>Manager</span><b className="text-slate-300 truncate ml-2">{g!.career.name} - {tacticalIdentity(g!).label}</b></button>
+            <button className="w-full flex justify-between" onClick={() => store.go('squad')}><span>Dressing room</span><b>{harmony(g!, me.id)}% harmony</b></button>
+            <div className="text-[10px] text-slate-500 pt-0.5">{fmtDate(date)} - budget {fmtMoney(me.transferBudget)} - wages {fmtMoney(wages)}/wk</div>
           </div>
         </Panel>
       </div>

@@ -102,8 +102,10 @@ function eventIcon(e: MatchEvent): string {
 
 export function MatchReportModal({ report, onClose }: { report: MatchReport; onClose: () => void }) {
   const { g } = useStore();
-  const [tab, setTab] = useState<'summary' | 'stats' | 'ratings'>('summary');
-  const h = g!.clubs[report.homeId], a = g!.clubs[report.awayId];
+  const [tab, setTab] = useState<'summary' | 'stats' | 'tactics' | 'ratings'>('summary');
+  const hc = g!.clubs[report.homeId], ac = g!.clubs[report.awayId];
+  const h = { name: hc?.name ?? g!.intl?.nations[report.homeId]?.name ?? report.homeId }, a = { name: ac?.name ?? g!.intl?.nations[report.awayId]?.name ?? report.awayId };
+  const comp = report.compName ?? g!.leagues[report.leagueId ?? 'L1']?.short ?? '';
   const s = report.stats;
   const pct = (n: number) => `${n}%`;
   const ratings = (team: 'home' | 'away') => report.players.filter((p) => p.team === team).sort((x, y) => Number(y.started) - Number(x.started) || y.rating - x.rating);
@@ -120,17 +122,17 @@ export function MatchReportModal({ report, onClose }: { report: MatchReport; onC
   const statSet = (k: keyof TeamStats) => [s.home[k], s.away[k]] as [number, number];
   const [hx, ax] = statSet('xg');
   return (
-    <Modal wide onClose={onClose} title={`${report.date ? fmtDate(report.date) : ''} - ${g!.leagues[report.leagueId ?? 'L1']?.short ?? ''} round ${report.week} - Full time`} footer={<button className="btn btn-primary" onClick={onClose}>Close</button>}>
+    <Modal wide onClose={onClose} title={`${report.date ? fmtDate(report.date) : ''} - ${comp}${report.comp && report.comp !== 'league' ? '' : ` round ${report.week}`} - Full time`} footer={<button className="btn btn-primary" onClick={onClose}>Close</button>}>
       <div className="flex items-center justify-center gap-4 mb-2">
-        <div className="flex items-center gap-2 w-1/3 justify-end"><span className="font-bold truncate">{h.name}</span><Badge club={h} size={36} /></div>
-        <div className="text-3xl font-extrabold tabular-nums">{report.hg} - {report.ag}</div>
-        <div className="flex items-center gap-2 w-1/3"><Badge club={a} size={36} /><span className="font-bold truncate">{a.name}</span></div>
+        <div className="flex items-center gap-2 w-1/3 justify-end"><span className="font-bold truncate">{h.name}</span>{hc ? <Badge club={hc} size={36} /> : null}</div>
+        <div className="text-center"><div className="text-3xl font-extrabold tabular-nums">{report.hg} - {report.ag}</div>{report.shootout ? <div className="text-[11px] text-slate-400">pens {report.shootout.home}-{report.shootout.away}</div> : report.et ? <div className="text-[11px] text-slate-400">after extra time</div> : null}</div>
+        <div className="flex items-center gap-2 w-1/3">{ac ? <Badge club={ac} size={36} /> : null}<span className="font-bold truncate">{a.name}</span></div>
       </div>
       <div className="grid grid-cols-2 gap-4 text-[11px] text-slate-300 mb-2 text-center">
         <div>{sc('home') || '-'}</div><div>{sc('away') || '-'}</div>
       </div>
       <div className="flex gap-1 mb-2 justify-center">
-        {(['summary', 'stats', 'ratings'] as const).map((t) => <button key={t} className={`btn btn-sm capitalize ${tab === t ? 'btn-primary' : ''}`} onClick={() => setTab(t)}>{t}</button>)}
+        {(['summary', 'stats', 'tactics', 'ratings'] as const).map((t) => <button key={t} className={`btn btn-sm capitalize ${tab === t ? 'btn-primary' : ''}`} onClick={() => setTab(t)}>{t}</button>)}
       </div>
       {tab === 'summary' && (
         <div className="grid grid-cols-2 gap-3">
@@ -152,6 +154,16 @@ export function MatchReportModal({ report, onClose }: { report: MatchReport; onC
                 {report.injuries.map((i) => <div key={i.playerId} className="text-bad">{g!.players[i.playerId]?.name}: {i.injury} ({i.days ?? i.weeks * 7} days)</div>)}</div>
             )}
           </div>
+        </div>
+      )}
+      {tab === 'tactics' && (
+        <div className="grid grid-cols-2 gap-3 text-[11px]">
+          <div><div className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">What decided the match</div>
+            {(report.factors ?? []).length ? <ul className="space-y-1.5 list-disc pl-4 text-slate-200">{report.factors!.map((t, i) => <li key={i}>{t}</li>)}</ul> : <div className="text-slate-500">No standout tactical factors.</div>}</div>
+          <div><div className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">Tactical numbers</div>
+            {report.tac ? <table className="w-full"><thead><tr><th className="th" /><th className="th text-right">{h.name.slice(0, 10)}</th><th className="th text-right">{a.name.slice(0, 10)}</th></tr></thead><tbody>
+              {([['Pressing turnovers', 'pressWins'], ['Chances from pressing', 'pressShots'], ['Counter-attacks', 'counterAttacks'], ['Balls in behind', 'behindChances'], ['Corners', 'corners'], ['Set-piece goals', 'setPieceGoals'], ['Wide chances', 'wideChances'], ['Central chances', 'centralChances'], ['Late goals conceded', 'lateConceded'], ['Tactical familiarity', 'familiarity']] as const).map(([l, k]) => <tr key={k} className="border-t border-line/40"><td className="td">{l}</td><td className="td text-right">{Math.round(report.tac!.home[k])}</td><td className="td text-right">{Math.round(report.tac!.away[k])}</td></tr>)}
+              <tr className="border-t border-line/40"><td className="td">Fatigue at the end</td><td className="td text-right">{Math.round(report.tac.home.fatigue * 100)}%</td><td className="td text-right">{Math.round(report.tac.away.fatigue * 100)}%</td></tr></tbody></table> : <div className="text-slate-500">Not recorded.</div>}</div>
         </div>
       )}
       {tab === 'stats' && (

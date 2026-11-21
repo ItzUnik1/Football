@@ -4,6 +4,7 @@ import { fmtMoney } from '../../engine/valuation';
 import { squadOf, wageBill } from '../../engine/team';
 import { projectedWeekly } from '../../engine/finance';
 import { fmtDateShort, seasonStart } from '../../engine/calendar';
+import { costsWeekly, incomeWeekly, projection } from '../../engine/econ';
 
 export function FinancesScreen() {
   const { g } = useStore();
@@ -21,6 +22,9 @@ export function FinancesScreen() {
   const ledger = g!.tx.filter((t) => t.amount !== 0 || t.type === 'contract').slice().reverse().slice(0, 80);
   const staff = sum(['staff', 'agent']);
   const net = tvIncome + gate + wages + staff;
+  const inc = incomeWeekly(me), cost = costsWeekly(g!, me), pr = projection(g!, me.id, 26);
+  const pts = pr.points; const lo = Math.min(...pts.map((p) => p.balance)), hi = Math.max(...pts.map((p) => p.balance));
+  const xy = pts.map((p, i) => `${(i / Math.max(1, pts.length - 1)) * 200},${40 - ((p.balance - lo) / Math.max(1, hi - lo)) * 36}`).join(' ');
   const due = g!.installments.filter((i) => i.fromClubId === me.id);
   return (
     <div className="h-full flex gap-2 fade-in">
@@ -39,6 +43,15 @@ export function FinancesScreen() {
             <Bar value={bill} max={me.wageBudget} color={bill > me.wageBudget * 0.95 ? '#f59e0b' : '#22c55e'} h={8} />
             <div className="text-[10px] text-slate-400 mt-1">Projected weekly income ~{fmtMoney(proj.income)} (TV {fmtMoney(me.weeklyIncome)} + gate)</div>
           </div>
+        </Panel>
+        <Panel title="Weekly income and costs" className="shrink-0">
+          <div className="grid grid-cols-4">
+            <Stat label="TV" value={fmtMoney(inc.tv)} tone="good" /><Stat label="Sponsors" value={fmtMoney(inc.sponsor + inc.kit)} tone="good" sub={me.econ?.sponsor.name} /><Stat label="Merch + other" value={fmtMoney(inc.merch + inc.other)} tone="good" /><Stat label="Net before gate" value={fmtMoney(inc.total - cost.wages - cost.staff - cost.stadium)} tone={inc.total - cost.wages - cost.staff - cost.stadium >= 0 ? 'good' : 'warn'} />
+            <Stat label="Wages" value={fmtMoney(cost.wages)} tone="bad" /><Stat label="Staff + manager" value={fmtMoney(cost.staff)} tone="bad" /><Stat label="Stadium" value={fmtMoney(cost.stadium)} tone="bad" /><Stat label="Debt" value={me.balance < 0 ? fmtMoney(-me.balance) : '-'} tone={me.balance < 0 ? 'bad' : undefined} />
+          </div>
+        </Panel>
+        <Panel title={`Projection: 26 weeks (${fmtMoney(pr.start)} to ${fmtMoney(pr.end)})`} className="shrink-0">
+          <div className="p-2 flex gap-3 items-center"><svg viewBox="0 0 200 44" className="w-40 h-10 shrink-0"><polyline points={xy} fill="none" stroke={pr.end >= pr.start ? '#22c55e' : '#ef4444'} strokeWidth="2" /></svg><div className="text-[10px] text-slate-400 space-y-0.5">{pr.notes.length ? pr.notes.slice(0, 3).map((n, i) => <div key={i}>{n}</div>) : <div>Stable outlook.</div>}</div></div>
         </Panel>
         <Panel title="This season" className="shrink-0">
           <div className="grid grid-cols-3">

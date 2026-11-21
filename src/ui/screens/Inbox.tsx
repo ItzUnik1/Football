@@ -6,6 +6,7 @@ import { fmtDate, fmtDateLong } from '../../engine/calendar';
 const msgDate = (m: Message) => fmtDate(m.date ?? m.createdAt);
 import { markAllRead, markRead, performAction, type InboxChoice } from '../../engine/inbox';
 import { fmtMoney } from '../../engine/valuation';
+import { PRESS_TOPICS, answerPress } from '../../engine/media';
 import type { Screen } from '../store';
 
 export function InboxScreen() {
@@ -146,6 +147,33 @@ function MessageActions({ m, act }: { m: Message; act: (m: Message, c: InboxChoi
       <button className="btn btn-sm" onClick={() => act(m, 'reject')}>Decline</button>
     </>
   );
+  if (a.kind === 'job_offer') return (
+    <>
+      <button className="btn btn-sm btn-primary" onClick={() => act(m, 'accept')}>Accept {fmtMoney(a.wage)}/wk x {a.years}y</button>
+      <button className="btn btn-sm btn-danger" onClick={() => act(m, 'reject')}>Decline</button>
+      <span className="text-[10px] text-slate-500">Valid until {fmtDate(a.expires)}{a.clubId ? ' - taking it ends your current club job' : ''}</span>
+    </>
+  );
+  if (a.kind === 'staff_offer') return (
+    <>
+      <button className="btn btn-sm btn-primary" onClick={() => act(m, 'accept')}>Renew 2 years</button>
+      <button className="btn btn-sm" onClick={() => store.go('staff')}>Staff</button>
+      <button className="btn btn-sm btn-danger" onClick={() => act(m, 'reject')}>Let him go</button>
+    </>
+  );
+  if (a.kind === 'intl_callup') return <button className="btn btn-sm btn-primary" onClick={() => store.go('international')}>International</button>;
+  if (a.kind === 'press') return <PressChoices m={m} />;
   if (a.kind === 'scout_report') return <button className="btn btn-sm btn-primary" onClick={() => { store.go('scouting'); store.openProfile(a.playerId); }}>View player and report</button>;
   return null;
+}
+
+function PressChoices({ m }: { m: Message }) {
+  const a = m.action as { kind: 'press'; topic: string };
+  const t = PRESS_TOPICS[a.topic];
+  if (!t) return null;
+  return (
+    <div className="flex flex-col gap-1 w-full">
+      {t.choices.map((c) => <button key={c.id} className="btn btn-sm justify-start text-left" onClick={() => store.mutate((gg) => answerPress(gg, m.id, c.id)).then((r) => store.toast(r.message, r.ok ? 'ok' : 'bad'))}><b>{c.label}</b><span className="text-slate-400 font-normal"> - {c.hint}</span></button>)}
+    </div>
+  );
 }

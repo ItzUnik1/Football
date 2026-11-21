@@ -14,9 +14,12 @@ import { InboxScreen } from './screens/Inbox';
 import { ClubScreen } from './screens/ClubInfo';
 import { TrainingScreen, MedicalScreen, AcademyScreen } from './screens/Squad2';
 import { ScoutingScreen } from './screens/Scouting';
+import { CupsScreen, InternationalScreen, NewsScreen, RecordsScreen } from './screens/World';
+import { FacilitiesScreen, ManagerScreen, MediaScreen, StadiumScreen, StaffScreen } from './screens/Club3';
 import { BoardScreen, HistoryScreen, StatsScreen } from './screens/Club2';
 import { advance, nextFixture, playTodayMatches, seasonComplete, userFixtureToday } from '../engine/game';
 import { repairLineup, validateLineup } from '../engine/team';
+import { autoNationTeam, selectNationSquad, userIntlFixtureToday, validateNationTeam } from '../engine/intl';
 import { positionOf } from '../engine/fixtures';
 import { fmtDate, fmtDateLong, seasonLabel, windowInfo, dayDiff } from '../engine/calendar';
 import { markRead } from '../engine/inbox';
@@ -30,9 +33,11 @@ const GROUPS: Group[] = [
   { id: 'home', label: 'Home', icon: 'M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10', tabs: [['home', 'Home']] },
   { id: 'calendar', label: 'Calendar', icon: 'M4 5h16v15H4zM4 10h16M9 3v4M15 3v4', tabs: [['calendar', 'Calendar']] },
   { id: 'squad', label: 'Squad', icon: 'M16 11a4 4 0 1 0-8 0M4 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2', tabs: [['squad', 'Players'], ['tactics', 'Tactics'], ['training', 'Training'], ['medical', 'Medical'], ['academy', 'Academy']] },
-  { id: 'league', label: 'Leagues', icon: 'M5 20V10M12 20V4M19 20v-7', tabs: [['league', 'League'], ['fixtures', 'Fixtures'], ['stats', 'Stats']] },
+  { id: 'league', label: 'Leagues', icon: 'M5 20V10M12 20V4M19 20v-7', tabs: [['league', 'League'], ['fixtures', 'Fixtures'], ['cups', 'Cup'], ['stats', 'Stats']] },
+  { id: 'world', label: 'World', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18', tabs: [['international', 'International'], ['news', 'News'], ['records', 'Records']] },
   { id: 'transfers', label: 'Transfers', icon: 'M4 8h13l-3-3M20 16H7l3 3', tabs: [['transfers', 'Market'], ['scouting', 'Scouting']] },
-  { id: 'club', label: 'Club', icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', tabs: [['club', 'Overview'], ['board', 'Board'], ['finances', 'Finances'], ['history', 'History']] },
+  { id: 'club', label: 'Club', icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', tabs: [['club', 'Overview'], ['board', 'Board'], ['finances', 'Finances'], ['stadium', 'Stadium'], ['facilities', 'Facilities'], ['staff', 'Staff'], ['history', 'History']] },
+  { id: 'manager', label: 'Manager', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 21l2-6h10l2 6', tabs: [['manager', 'Career'], ['media', 'Media']] },
 ];
 const groupOf = (s: Screen) => GROUPS.find((gr) => gr.tabs.some((t) => t[0] === s)) ?? GROUPS[1];
 
@@ -64,6 +69,7 @@ function RotateNotice() {
 const SCREENS: Record<Screen, () => ReactElement> = {
   inbox: InboxScreen, home: HomeScreen, calendar: CalendarScreen, squad: SquadScreen, tactics: TacticsScreen, training: TrainingScreen, medical: MedicalScreen, academy: AcademyScreen,
   league: LeagueScreen, fixtures: FixturesScreen, stats: StatsScreen, transfers: TransfersScreen, scouting: ScoutingScreen, club: ClubScreen, board: BoardScreen, finances: FinancesScreen, history: HistoryScreen,
+  cups: CupsScreen, international: InternationalScreen, news: NewsScreen, records: RecordsScreen, stadium: StadiumScreen, facilities: FacilitiesScreen, staff: StaffScreen, manager: ManagerScreen, media: MediaScreen,
 };
 
 function GameShell() {
@@ -74,6 +80,9 @@ function GameShell() {
   const date = g!.meta.date ?? g!.meta.startDate;
   const today = userFixtureToday(g!);
   const matchToday = !!today && !today.played;
+  const intlFx = !matchToday ? userIntlFixtureToday(g!) : undefined;
+  const intlToday = !!intlFx && !intlFx.played;
+  const intlOpp = intlToday ? g!.intl.nations[intlFx!.home === g!.intl.userNation ? intlFx!.away : intlFx!.home] : null;
   const next = nextFixture(g!);
   const nextMsg = nextUnread(g!);
   const unread = unreadCount(g!);
@@ -87,8 +96,10 @@ function GameShell() {
 
   const simulate = async (autoFix = false) => {
     if (busy) return;
-    if (autoFix) await store.mutate((gg) => repairLineup(gg, gg.clubs[gg.meta.userClubId]));
-    const errs = validateLineup(g!, me);
+    const nat = g!.intl.userNation ? g!.intl.nations[g!.intl.userNation] : undefined;
+    const forNat = !matchToday && intlToday && !!nat;
+    if (autoFix) await store.mutate((gg) => { if (forNat) { const n = gg.intl.nations[gg.intl.userNation!]; if (n.squad.length < 14) selectNationSquad(gg, n); autoNationTeam(gg, n); } else repairLineup(gg, gg.clubs[gg.meta.userClubId]); });
+    const errs = forNat ? validateNationTeam(g!, g!.intl.nations[g!.intl.userNation!]) : validateLineup(g!, me);
     if (errs.length) { setLineupErrs(errs); return; }
     setLineupErrs(null);
     setBusy(true);
@@ -122,6 +133,7 @@ function GameShell() {
   let primary: { label: string; onClick: () => void; kind?: string };
   if (sacked) primary = { label: 'DISMISSED', onClick: () => store.go('board') };
   else if (onInbox && nextMsg) primary = { label: `NEXT MESSAGE (${unread})`, onClick: nextMessage };
+  else if (intlToday && !matchToday) primary = { label: `INTERNATIONAL - vs ${intlOpp!.code}`, onClick: () => simulate() };
   else if (matchToday) primary = { label: `SIMULATE MATCH - ${matchFx!.home === me.id ? 'vs' : '@'} ${opp!.short}`, onClick: () => simulate() };
   else primary = { label: 'CONTINUE', onClick: () => go('event') };
 
@@ -158,7 +170,7 @@ function GameShell() {
               <div className="absolute right-0 top-full mt-1 z-30 panel bg-panel2 w-44 py-1 shadow-xl fade-in">
                 {[
                   { l: 'Continue (to next event)', f: () => go('event'), off: matchToday },
-                  { l: 'Advance 1 day', f: () => go('day'), off: matchToday },
+                  { l: 'Advance 1 day', f: () => go('day'), off: matchToday || intlToday },
                   { l: 'Advance 3 days', f: () => go('days', 3), off: matchToday },
                   { l: 'Advance 1 week', f: () => go('week'), off: matchToday },
                   { l: 'Advance to next match', f: () => go('match'), off: matchToday || !next },
@@ -180,7 +192,7 @@ function GameShell() {
       {report && <MatchReportModal report={report} onClose={() => store.openReport(undefined)} />}
       {lineupErrs && (
         <Modal title="Lineup is not valid" onClose={() => setLineupErrs(null)}
-          footer={<><button className="btn" onClick={() => { setLineupErrs(null); store.go('tactics'); }}>Open tactics</button><button className="btn btn-primary" onClick={() => simulate(true)}>Auto-fix and play</button></>}>
+          footer={<><button className="btn" onClick={() => { setLineupErrs(null); store.setUi({ tacticsFor: intlToday && !matchToday ? 'nation' : 'club' }); store.go('tactics'); }}>Open tactics</button><button className="btn btn-primary" onClick={() => simulate(true)}>Auto-fix and play</button></>}>
           <ul className="list-disc pl-4 space-y-1 text-bad">{lineupErrs.map((e, i) => <li key={i}>{e}</li>)}</ul>
         </Modal>
       )}
