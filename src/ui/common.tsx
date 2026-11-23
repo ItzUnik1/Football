@@ -1,7 +1,7 @@
 import { memo, type ReactNode } from 'react';
 import type { Club, Player, Pos } from '../engine/types';
 
-export const POS_COLOR: Record<Pos, string> = { GK: '#f59e0b', DF: '#38bdf8', MF: '#22c55e', FW: '#ef4444' };
+export const POS_COLOR: Record<Pos, string> = { GK: 'rgb(var(--warn))', DF: 'rgb(var(--info))', MF: 'rgb(var(--accent))', FW: 'rgb(var(--bad))' };
 
 export const Badge = memo(function Badge({ club, size = 28 }: { club: Club; size?: number }) {
   const [c1, c2] = club.colors;
@@ -25,10 +25,10 @@ export function PosTag({ pos }: { pos: Pos }) {
 }
 
 export function ovrColor(v: number): string {
-  if (v >= 80) return '#22c55e';
-  if (v >= 72) return '#84cc16';
-  if (v >= 65) return '#eab308';
-  if (v >= 58) return '#f59e0b';
+  if (v >= 80) return 'rgb(var(--accent))';
+  if (v >= 72) return 'rgb(var(--good2))';
+  if (v >= 65) return 'rgb(var(--mid))';
+  if (v >= 58) return 'rgb(var(--warn))';
   return '#94a3b8';
 }
 export function Ovr({ v }: { v: number }) {
@@ -37,7 +37,7 @@ export function Ovr({ v }: { v: number }) {
 
 export function Bar({ value, max = 100, color, h = 5 }: { value: number; max?: number; color?: string; h?: number }) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
-  const c = color ?? (pct > 70 ? '#22c55e' : pct > 45 ? '#eab308' : '#ef4444');
+  const c = color ?? (pct > 70 ? 'rgb(var(--accent))' : pct > 45 ? 'rgb(var(--mid))' : 'rgb(var(--bad))');
   return <div className="w-full bg-black/40 rounded" style={{ height: h }}><div className="rounded h-full" style={{ width: `${pct}%`, background: c }} /></div>;
 }
 
@@ -85,23 +85,23 @@ export function FormChips({ form }: { form: ('W' | 'D' | 'L')[] }) {
   return (
     <span className="inline-flex gap-[2px]">
       {form.slice(-5).map((f, i) => (
-        <span key={i} className="w-4 h-4 text-[9px] font-bold flex items-center justify-center rounded-sm text-black" style={{ background: f === 'W' ? '#22c55e' : f === 'D' ? '#eab308' : '#ef4444' }}>{f}</span>
+        <span key={i} className="w-4 h-4 text-[9px] font-bold flex items-center justify-center rounded-sm text-black" style={{ background: f === 'W' ? 'rgb(var(--accent))' : f === 'D' ? 'rgb(var(--mid))' : 'rgb(var(--bad))' }}>{f}</span>
       ))}
     </span>
   );
 }
 
 export function statusOf(p: Player): { text: string; color: string } | null {
-  if (p.injuredDays > 0) return { text: `Inj ${p.injuredDays}d`, color: '#ef4444' };
-  if (p.suspended > 0) return { text: `Ban ${p.suspended}`, color: '#f59e0b' };
-  if (p.parentClubId) return { text: 'Loan', color: '#38bdf8' };
+  if (p.injuredDays > 0) return { text: `Inj ${p.injuredDays}d`, color: 'rgb(var(--bad))' };
+  if (p.suspended > 0) return { text: `Ban ${p.suspended}`, color: 'rgb(var(--warn))' };
+  if (p.parentClubId) return { text: 'Loan', color: 'rgb(var(--info))' };
   return null;
 }
 
 export const moraleLabel = (m: number) => (m >= 80 ? 'Superb' : m >= 65 ? 'Good' : m >= 50 ? 'Okay' : m >= 35 ? 'Poor' : 'Unhappy');
 
 export function CatIcon({ cat }: { cat: string }) {
-  const map: Record<string, string> = { Transfers: '#38bdf8', Contracts: '#a78bfa', Medical: '#ef4444', Board: '#f59e0b', Players: '#22c55e', Fixtures: '#94a3b8', Competitions: '#eab308', Finances: '#14b8a6', Scouting: '#06b6d4', Youth: '#ec4899', Training: '#38bdf8', Media: '#a3e635', Staff: '#fb923c', Manager: '#f472b6', International: '#22d3ee' };
+  const map: Record<string, string> = { Transfers: 'rgb(var(--info))', Contracts: '#a78bfa', Medical: 'rgb(var(--bad))', Board: 'rgb(var(--warn))', Players: 'rgb(var(--accent))', Fixtures: '#94a3b8', Competitions: 'rgb(var(--mid))', Finances: '#14b8a6', Scouting: '#06b6d4', Youth: '#ec4899', Training: 'rgb(var(--info))', Media: '#a3e635', Staff: '#fb923c', Manager: '#f472b6', International: '#22d3ee' };
   return <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: map[cat] ?? '#94a3b8' }} />;
 }
 

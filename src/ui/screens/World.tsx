@@ -222,7 +222,7 @@ function IntlHonours() {
 void acceptNationJob;
 
 // ---------- News ----------
-const NEWS_CAT: Record<NewsCat, string> = { league: '#22c55e', transfer: '#38bdf8', manager: '#f59e0b', injury: '#ef4444', development: '#a78bfa', finance: '#14b8a6', competition: '#eab308', intl: '#06b6d4', record: '#ec4899', media: '#94a3b8', club: '#cbd5e1' };
+const NEWS_CAT: Record<NewsCat, string> = { league: 'rgb(var(--accent))', transfer: 'rgb(var(--info))', manager: 'rgb(var(--warn))', injury: 'rgb(var(--bad))', development: '#a78bfa', finance: '#14b8a6', competition: 'rgb(var(--mid))', intl: '#06b6d4', record: '#ec4899', media: '#94a3b8', club: '#cbd5e1' };
 export function NewsScreen() {
   const { g } = useStore();
   const [cat, setCat] = useState<NewsCat | 'all' | 'mine'>('all');

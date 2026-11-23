@@ -30,7 +30,7 @@ export function LeagueScreen() {
                 const c = g!.clubs[r.clubId];
                 return (
                   <tr key={r.clubId} className={`border-t border-line/40 ${r.clubId === me ? 'bg-accent/15 font-semibold' : ''}`}>
-                    <td className="td w-6" style={{ borderLeft: `3px solid ${(lg.tier === 1 ? i < 4 : i < lg.promote) ? '#22c55e' : lg.relegate && i >= table.length - lg.relegate ? '#ef4444' : 'transparent'}` }}>{i + 1}</td>
+                    <td className="td w-6" style={{ borderLeft: `3px solid ${(lg.tier === 1 ? i < 4 : i < lg.promote) ? 'rgb(var(--accent))' : lg.relegate && i >= table.length - lg.relegate ? 'rgb(var(--bad))' : 'transparent'}` }}>{i + 1}</td>
                     <td className="td"><span className="inline-flex items-center gap-1.5"><Badge club={c} size={18} />{c.name}</span></td>
                     <td className="td text-right">{r.played}</td><td className="td text-right">{r.won}</td><td className="td text-right">{r.drawn}</td><td className="td text-right">{r.lost}</td>
                     <td className="td text-right">{r.gf}</td><td className="td text-right">{r.ga}</td><td className="td text-right">{r.gd > 0 ? `+${r.gd}` : r.gd}</td>

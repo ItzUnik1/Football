@@ -110,3 +110,12 @@ npm run build && node scripts/test-ui.mjs   # headless landscape UI walk through
 - **Manager profile**: choose name, age, nationality, background (former professional, academy coach, tactical analyst, lower-league journeyman) and preferred style. Background sets starting tactics/motivation/youth attributes, reputation and experience; the style sets your starting tactical preset. Attributes grow with success and affect tactical quality, press/morale effects and youth development.
 - **Save slots**: 6 independent careers (one IndexedDB database per slot). Slot 1 keeps the original database name, so earlier saves appear there automatically. Load/Manage screen shows manager, club, season and date, and allows deleting a slot.
 - **Real club names**: new worlds use real club names for all three tiers (names only; no licences). Badges and kits are generated, and players and managers stay fictional. Existing saves keep their old fictional names. Untick "Real club names" in the profile screen for the fictional world.
+
+## Usability
+
+- **Save and close**: the in-game Menu (bottom of the left bar, or the Android back button) has Save game, Save and quit to menu, Save and close the game, and Back up to file. Every action is also saved automatically, and the game saves when it goes to the background.
+- **Quick-sim**: from the arrow next to CONTINUE choose "Quick-sim..." to play 1 week / 1 month / 3 months, to a chosen date, or to the end of the season. Your lineup is auto-repaired when invalid, inbox offers are not answered while simming, and it stops if you are dismissed or a new season starts.
+- **Backup**: "Back up to file" (or Export on the saves screen) writes a compressed `.tlsave` and opens the Android share sheet (a download in a browser). "Import from file" on Load / Manage Saves restores it into any slot, replacing that slot.
+- **Club editor** (Club > Editor): rename clubs, change city, stadium, colours and badge shape; share or import a club database file (`.tlclubs`, matches clubs by id).
+- **Settings** (title screen or Menu): text size (normal/large/extra large), dark or light theme, colour-blind palette (blue/orange/yellow), reduce motion.
+- New plugins: `@capacitor/app` (back button, exit), `@capacitor/filesystem` and `@capacitor/share` (backup files).

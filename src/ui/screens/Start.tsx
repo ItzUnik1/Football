@@ -9,6 +9,7 @@ import type { Game } from '../../engine/types';
 import type { Background, ManagerProfile } from '../../engine/types3';
 import { NATIONS, MANAGER_STYLES } from '../../engine/names';
 import { BACKGROUNDS } from '../../engine/mgr';
+import { exportSlotFile } from './Menu';
 
 const fmtWhen = (d?: number) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '');
 const NAMES_FIRST = ['Alex', 'Chris', 'Sam', 'Jamie', 'Luca', 'Mateo', 'Noah', 'Ethan', 'Lewis', 'Daniel'];
@@ -25,6 +26,7 @@ export function StartScreen() {
         <div className="flex flex-col gap-2 items-stretch w-56 mx-auto">
           {ui.hasSave && last && <button className="btn btn-primary min-h-[38px] text-sm" onClick={() => store.continueCareer(last)}>Continue Career{ui.slots.find((x) => x.slot === last)?.club ? ` - ${ui.slots.find((x) => x.slot === last)!.club}` : ''}</button>}
           {ui.hasSave && <button className="btn min-h-[38px] text-sm" onClick={() => store.setUi({ phase: 'slots' })}>Load / Manage Saves</button>}
+          <button className="btn min-h-[38px] text-sm" onClick={() => store.setUi({ modal: 'settings' })}>Settings</button>
           <button className="btn min-h-[38px] text-sm" onClick={() => { const free = ui.slots.find((x) => !x.used)?.slot ?? last ?? 1; store.setUi({ phase: 'profile', draft: ui.draft ?? { profile: { name: `${NAMES_FIRST[Math.floor(Math.random() * 10)]} ${NAMES_LAST[Math.floor(Math.random() * 10)]}`, age: 45, nat: 'England', background: 'journeyman', style: 'Pragmatic' }, slot: free, realNames: true } }); }}>New Career</button>
         </div>
         <div className="text-[10px] text-slate-500 mt-4">Offline-first - {ui.slots.length || 6} save slots on this device</div>
@@ -38,7 +40,7 @@ export function SlotsScreen() {
   const [del, setDel] = useState<number | null>(null);
   return (
     <div className="h-full flex flex-col p-2 gap-2">
-      <div className="flex items-center justify-between shrink-0"><div className="font-bold text-sm">Saved careers</div><button className="btn btn-sm" onClick={() => store.setUi({ phase: 'start' })}>Back</button></div>
+      <div className="flex items-center justify-between shrink-0"><div className="font-bold text-sm">Saved careers</div><div className="flex gap-1"><button className="btn btn-sm" onClick={() => store.setUi({ modal: 'import' })}>Import from file</button><button className="btn btn-sm" onClick={() => store.setUi({ phase: 'start' })}>Back</button></div></div>
       <div className="flex-1 min-h-0 scroll-y grid grid-cols-2 gap-2 content-start">
         {ui.slots.map((sl) => (
           <Panel key={sl.slot}>
@@ -47,7 +49,7 @@ export function SlotsScreen() {
               <div className="flex-1 min-w-0 text-[11px]">
                 {sl.used ? (<><div className="font-bold truncate">{sl.club}</div><div className="text-slate-400 truncate">{sl.manager} - {sl.league}</div><div className="text-slate-500">Season {sl.season}/{String((sl.season ?? 0) + 1).slice(2)} - {fmtWhen(sl.date)}</div></>) : <div className="text-slate-500">Empty slot</div>}
               </div>
-              {sl.used ? <div className="flex flex-col gap-1"><button className="btn btn-sm btn-primary" onClick={() => store.continueCareer(sl.slot)}>Load</button><button className="btn btn-sm btn-danger" onClick={() => setDel(sl.slot)}>Delete</button></div>
+              {sl.used ? <div className="flex flex-col gap-1"><button className="btn btn-sm btn-primary" onClick={() => store.continueCareer(sl.slot)}>Load</button><button className="btn btn-sm" onClick={() => exportSlotFile(sl.slot)}>Export</button><button className="btn btn-sm btn-danger" onClick={() => setDel(sl.slot)}>Delete</button></div>
                 : <button className="btn btn-sm" onClick={() => store.setUi({ phase: 'profile', draft: { profile: { name: 'New Manager', age: 45, nat: 'England', background: 'journeyman', style: 'Pragmatic' }, slot: sl.slot, realNames: true } })}>New</button>}
             </div>
           </Panel>
@@ -69,10 +71,13 @@ export function SlotsScreen() {
 export function ProfileScreen() {
   const { ui } = useStore();
   const d = ui.draft!;
+  // The age box keeps what is typed (so "5" on the way to "55" is allowed) and is clamped to 30-70 when you leave it.
+  const [ageText, setAgeText] = useState(String(d.profile.age));
   const set = (p: Partial<ManagerProfile>) => store.setUi({ draft: { ...d, profile: { ...d.profile, ...p } } });
   const pr = d.profile; const bg = BACKGROUNDS[pr.background];
   const target = ui.slots.find((x) => x.slot === d.slot);
-  const valid = pr.name.trim().length >= 3;
+  const ageNum = parseInt(ageText, 10);
+  const valid = pr.name.trim().length >= 3 && ageNum >= 30 && ageNum <= 70;
   const Bar2 = ({ label, v }: { label: string; v: number }) => <div className="flex items-center gap-2 text-[10px]"><span className="w-20 text-slate-400 uppercase tracking-wider">{label}</span><div className="flex-1 h-1.5 bg-line rounded"><div className="h-full rounded bg-accent" style={{ width: `${(v / 20) * 100}%` }} /></div><b className="w-5 text-right">{v}</b></div>;
   return (
     <div className="h-full flex flex-col p-2 gap-2">
@@ -82,7 +87,9 @@ export function ProfileScreen() {
           <div className="scroll-y h-full p-2 space-y-2 text-[11px]">
             <div className="grid grid-cols-[1fr_70px_1fr] gap-2">
               <label className="block"><div className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Name</div><input className="w-full bg-panel2 border border-line rounded px-2 py-1.5 text-sm" maxLength={28} value={pr.name} onChange={(e) => set({ name: e.target.value })} /></label>
-              <label className="block"><div className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Age</div><input type="number" min={30} max={70} className="w-full bg-panel2 border border-line rounded px-2 py-1.5 text-sm" value={pr.age} onChange={(e) => set({ age: Math.max(30, Math.min(70, parseInt(e.target.value, 10) || 45)) })} /></label>
+              <label className="block"><div className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Age</div><input type="text" inputMode="numeric" maxLength={2} className="w-full bg-panel2 border border-line rounded px-2 py-1.5 text-sm" value={ageText} onFocus={(e) => e.target.select()}
+                onChange={(e) => { const t = e.target.value.replace(/\D/g, '').slice(0, 2); setAgeText(t); const n = parseInt(t, 10); if (n >= 30 && n <= 70) set({ age: n }); }}
+                onBlur={() => { const n = Math.max(30, Math.min(70, parseInt(ageText, 10) || 45)); setAgeText(String(n)); set({ age: n }); }} /></label>
               <label className="block"><div className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Nationality</div><select className="w-full bg-panel2 border border-line rounded px-2 py-1.5 text-sm" value={pr.nat} onChange={(e) => set({ nat: e.target.value })}>{NATIONS.map((n) => <option key={n.nat}>{n.nat}</option>)}</select></label>
             </div>
             <div><div className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Background</div>

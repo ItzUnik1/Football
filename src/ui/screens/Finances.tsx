@@ -40,7 +40,7 @@ export function FinancesScreen() {
         <Panel title="Wage bill">
           <div className="p-2">
             <div className="flex justify-between text-[11px] mb-1"><span>{fmtMoney(bill)}/wk of {fmtMoney(me.wageBudget)}/wk</span><span>{Math.round((bill / me.wageBudget) * 100)}%</span></div>
-            <Bar value={bill} max={me.wageBudget} color={bill > me.wageBudget * 0.95 ? '#f59e0b' : '#22c55e'} h={8} />
+            <Bar value={bill} max={me.wageBudget} color={bill > me.wageBudget * 0.95 ? 'rgb(var(--warn))' : 'rgb(var(--accent))'} h={8} />
             <div className="text-[10px] text-slate-400 mt-1">Projected weekly income ~{fmtMoney(proj.income)} (TV {fmtMoney(me.weeklyIncome)} + gate)</div>
           </div>
         </Panel>
@@ -51,7 +51,7 @@ export function FinancesScreen() {
           </div>
         </Panel>
         <Panel title={`Projection: 26 weeks (${fmtMoney(pr.start)} to ${fmtMoney(pr.end)})`} className="shrink-0">
-          <div className="p-2 flex gap-3 items-center"><svg viewBox="0 0 200 44" className="w-40 h-10 shrink-0"><polyline points={xy} fill="none" stroke={pr.end >= pr.start ? '#22c55e' : '#ef4444'} strokeWidth="2" /></svg><div className="text-[10px] text-slate-400 space-y-0.5">{pr.notes.length ? pr.notes.slice(0, 3).map((n, i) => <div key={i}>{n}</div>) : <div>Stable outlook.</div>}</div></div>
+          <div className="p-2 flex gap-3 items-center"><svg viewBox="0 0 200 44" className="w-40 h-10 shrink-0"><polyline points={xy} fill="none" style={{ stroke: pr.end >= pr.start ? 'rgb(var(--accent))' : 'rgb(var(--bad))' }} strokeWidth="2" /></svg><div className="text-[10px] text-slate-400 space-y-0.5">{pr.notes.length ? pr.notes.slice(0, 3).map((n, i) => <div key={i}>{n}</div>) : <div>Stable outlook.</div>}</div></div>
         </Panel>
         <Panel title="This season" className="shrink-0">
           <div className="grid grid-cols-3">

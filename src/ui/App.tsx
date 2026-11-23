@@ -1,3 +1,5 @@
+import { applySettings, loadSettings } from './settings';
+import { isNative } from './files';
 import { useEffect, useState, type ReactElement } from 'react';
 import { store, useStore, type Screen } from './store';
 import { Badge, Modal } from './common';
@@ -17,6 +19,7 @@ import { ScoutingScreen } from './screens/Scouting';
 import { CupsScreen, InternationalScreen, NewsScreen, RecordsScreen } from './screens/World';
 import { FacilitiesScreen, ManagerScreen, MediaScreen, StadiumScreen, StaffScreen } from './screens/Club3';
 import { BoardScreen, HistoryScreen, StatsScreen } from './screens/Club2';
+import { EditorScreen, GameMenu, ImportModal, QuickSimModal, SettingsModal } from './screens/Menu';
 import { advance, nextFixture, playTodayMatches, seasonComplete, userFixtureToday } from '../engine/game';
 import { repairLineup, validateLineup } from '../engine/team';
 import { autoNationTeam, selectNationSquad, userIntlFixtureToday, validateNationTeam } from '../engine/intl';
@@ -36,7 +39,7 @@ const GROUPS: Group[] = [
   { id: 'league', label: 'Leagues', icon: 'M5 20V10M12 20V4M19 20v-7', tabs: [['league', 'League'], ['fixtures', 'Fixtures'], ['cups', 'Cup'], ['stats', 'Stats']] },
   { id: 'world', label: 'World', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18', tabs: [['international', 'International'], ['news', 'News'], ['records', 'Records']] },
   { id: 'transfers', label: 'Transfers', icon: 'M4 8h13l-3-3M20 16H7l3 3', tabs: [['transfers', 'Market'], ['scouting', 'Scouting']] },
-  { id: 'club', label: 'Club', icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', tabs: [['club', 'Overview'], ['board', 'Board'], ['finances', 'Finances'], ['stadium', 'Stadium'], ['facilities', 'Facilities'], ['staff', 'Staff'], ['history', 'History']] },
+  { id: 'club', label: 'Club', icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', tabs: [['club', 'Overview'], ['board', 'Board'], ['finances', 'Finances'], ['stadium', 'Stadium'], ['facilities', 'Facilities'], ['staff', 'Staff'], ['history', 'History'], ['editor', 'Editor']] },
   { id: 'manager', label: 'Manager', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 21l2-6h10l2 6', tabs: [['manager', 'Career'], ['media', 'Media']] },
 ];
 const groupOf = (s: Screen) => GROUPS.find((gr) => gr.tabs.some((t) => t[0] === s)) ?? GROUPS[1];
@@ -69,7 +72,7 @@ function RotateNotice() {
 const SCREENS: Record<Screen, () => ReactElement> = {
   inbox: InboxScreen, home: HomeScreen, calendar: CalendarScreen, squad: SquadScreen, tactics: TacticsScreen, training: TrainingScreen, medical: MedicalScreen, academy: AcademyScreen,
   league: LeagueScreen, fixtures: FixturesScreen, stats: StatsScreen, transfers: TransfersScreen, scouting: ScoutingScreen, club: ClubScreen, board: BoardScreen, finances: FinancesScreen, history: HistoryScreen,
-  cups: CupsScreen, international: InternationalScreen, news: NewsScreen, records: RecordsScreen, stadium: StadiumScreen, facilities: FacilitiesScreen, staff: StaffScreen, manager: ManagerScreen, media: MediaScreen,
+  cups: CupsScreen, international: InternationalScreen, news: NewsScreen, records: RecordsScreen, stadium: StadiumScreen, facilities: FacilitiesScreen, staff: StaffScreen, manager: ManagerScreen, media: MediaScreen, editor: EditorScreen,
 };
 
 function GameShell() {
@@ -153,6 +156,9 @@ function GameShell() {
             </button>
           ))}
         </div>
+        <button onClick={() => store.setUi({ modal: 'menu' })} className="w-full flex items-center gap-2 px-2.5 h-9 text-[11px] font-semibold text-left border-t border-line text-slate-300 active:bg-panel2" aria-label="Game menu">
+          <Icon d="M4 6h16M4 12h16M4 18h16" /><span>Menu</span>
+        </button>
       </nav>
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="h-11 shrink-0 bg-panel border-b border-line flex items-center gap-2 px-3">
@@ -175,6 +181,7 @@ function GameShell() {
                   { l: 'Advance 1 week', f: () => go('week'), off: matchToday },
                   { l: 'Advance to next match', f: () => go('match'), off: matchToday || !next },
                   { l: 'Read next message', f: nextMessage, off: !nextMsg },
+                  { l: 'Quick-sim...', f: () => store.setUi({ advanceMenu: false, modal: 'quick' }), off: sacked },
                 ].map((o) => <button key={o.l} disabled={o.off} className="w-full text-left px-3 py-1.5 text-[11px] disabled:opacity-40 active:bg-panel" onClick={o.f}>{o.l}</button>)}
               </div>
             )}
@@ -203,6 +210,8 @@ function GameShell() {
         </Modal>
       )}
       {sacked && <SackedDialog />}
+      {ui.modal === 'menu' && <GameMenu />}
+      {ui.modal === 'quick' && <QuickSimModal />}
     </div>
   );
 }
@@ -227,7 +236,28 @@ function SackedDialog() {
 
 export default function App() {
   const { ui } = useStore();
-  useEffect(() => { store.init(); }, []);
+  useEffect(() => { store.init(); applySettings(loadSettings()); }, []);
+  // Android back button opens the menu in game (or steps back through the title screens); autosave when the app is hidden.
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden') void store.saveNow(); };
+    document.addEventListener('visibilitychange', onHide);
+    let remove: (() => void) | undefined;
+    if (isNative()) {
+      void import('@capacitor/app').then(({ App: Cap }) => {
+        void Cap.addListener('backButton', () => {
+          const u = store.ui;
+          if (u.modal) { store.setUi({ modal: undefined }); return; }
+          if (u.reportId) { store.openReport(undefined); return; }
+          if (u.profileId) { store.openProfile(undefined); return; }
+          if (u.phase === 'game') { store.setUi({ modal: 'menu' }); return; }
+          if (u.phase === 'select') { store.setUi({ phase: 'profile' }); return; }
+          if (u.phase === 'profile' || u.phase === 'slots') { store.setUi({ phase: 'start' }); return; }
+          void Cap.exitApp();
+        }).then((h) => { remove = () => void h.remove(); });
+      });
+    }
+    return () => { document.removeEventListener('visibilitychange', onHide); remove?.(); };
+  }, []);
   return (
     <>
       <RotateNotice />
@@ -238,6 +268,8 @@ export default function App() {
       {ui.phase === 'profile' && <ProfileScreen />}
       {ui.phase === 'select' && <ClubSelect />}
       {ui.phase === 'game' && <GameShell />}
+      {ui.modal === 'settings' && <SettingsModal />}
+      {ui.modal === 'import' && <ImportModal />}
     </>
   );
 }

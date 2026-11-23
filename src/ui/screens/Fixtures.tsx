@@ -30,7 +30,7 @@ export function FixturesScreen() {
         <td className="td w-6 text-center text-slate-400">{home ? 'H' : 'A'}</td>
         <td className="td"><span className="inline-flex items-center gap-1.5"><Badge club={opp} size={18} />{opp.name}</span></td>
         <td className="td text-center font-bold">
-          {f.played ? (<span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 rounded-sm text-[9px] text-black flex items-center justify-center" style={{ background: res === 'W' ? '#22c55e' : res === 'D' ? '#eab308' : '#ef4444' }}>{res}</span>{f.hg}-{f.ag}</span>) : <span className="text-slate-500">vs</span>}
+          {f.played ? (<span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 rounded-sm text-[9px] text-black flex items-center justify-center" style={{ background: res === 'W' ? 'rgb(var(--accent))' : res === 'D' ? 'rgb(var(--mid))' : 'rgb(var(--bad))' }}>{res}</span>{f.hg}-{f.ag}</span>) : <span className="text-slate-500">vs</span>}
         </td>
         <td className="td text-right text-[10px] text-accent2">{has ? 'Report >' : nextFx?.id === f.id ? 'Next match' : ''}</td>
       </tr>
@@ -114,7 +114,7 @@ export function MatchReportModal({ report, onClose }: { report: MatchReport; onC
       <td className="td w-8 text-slate-400">{p.pos}</td>
       <td className="td">{p.name}{p.id === report.motm && <span className="ml-1 text-[9px] bg-warn text-black rounded px-1">MOTM</span>}</td>
       <td className="td text-slate-400">{p.goals ? `G${p.goals} ` : ''}{p.assists ? `A${p.assists}` : ''}</td>
-      <td className="td text-right font-bold" style={{ color: p.rating >= 7.5 ? '#22c55e' : p.rating < 6 ? '#ef4444' : '#e5e9f0' }}>{p.rating.toFixed(1)}</td>
+      <td className="td text-right font-bold" style={{ color: p.rating >= 7.5 ? 'rgb(var(--accent))' : p.rating < 6 ? 'rgb(var(--bad))' : '#e5e9f0' }}>{p.rating.toFixed(1)}</td>
     </tr>
   );
   const goals = report.events.filter((e) => e.type === 'goal');
@@ -141,7 +141,7 @@ export function MatchReportModal({ report, onClose }: { report: MatchReport; onC
             {report.events.length === 0 ? <div className="text-slate-500">No notable events.</div> : report.events.map((e, i) => (
               <div key={i} className={`flex gap-2 py-0.5 border-b border-line/30 ${e.team === 'away' ? 'flex-row-reverse text-right' : ''}`}>
                 <span className="w-7 text-slate-400 tabular-nums">{e.min}'</span>
-                <span className="text-[10px] font-bold w-16" style={{ color: e.type === 'goal' ? '#22c55e' : e.type === 'red' ? '#ef4444' : e.type === 'yellow' ? '#eab308' : e.type === 'injury' ? '#f97316' : '#94a3b8' }}>{eventIcon(e)}</span>
+                <span className="text-[10px] font-bold w-16" style={{ color: e.type === 'goal' ? 'rgb(var(--accent))' : e.type === 'red' ? 'rgb(var(--bad))' : e.type === 'yellow' ? 'rgb(var(--mid))' : e.type === 'injury' ? '#f97316' : '#94a3b8' }}>{eventIcon(e)}</span>
                 <span className="flex-1 truncate">{e.type === 'sub' ? `${e.player} on, ${e.assist} off` : e.type === 'goal' ? `${e.player}${e.assist ? ` (${e.assist})` : ''}` : `${e.player}${e.detail && e.type !== 'yellow' ? ` - ${e.detail}` : ''}`}</span>
               </div>
             ))}

@@ -103,7 +103,7 @@ export function TacticsScreen() {
             const bad = !p || p.injuredDays > 0 || p.suspended > 0;
             return (
               <button key={i} onClick={() => setSel({ kind: 'xi', idx: i })} className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${s.x}%`, top: `${s.y}%` }}>
-                <span className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-[11px] font-extrabold text-black ${active ? 'ring-2 ring-white' : ''}`} style={{ background: bad ? '#ef4444' : p ? POS_COLOR[s.pos] : '#475569', borderColor: active ? '#fff' : 'rgba(0,0,0,.5)' }}>
+                <span className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-[11px] font-extrabold text-black ${active ? 'ring-2 ring-white' : ''}`} style={{ background: bad ? 'rgb(var(--bad))' : p ? POS_COLOR[s.pos] : '#475569', borderColor: active ? '#fff' : 'rgba(0,0,0,.5)' }}>
                   {p ? p.ovr : '?'}
                 </span>
                 <span className="text-[9px] leading-tight mt-0.5 px-1 rounded bg-black/60 max-w-[64px] truncate">{p ? p.name.split(' ').slice(-1)[0] : s.label}</span>

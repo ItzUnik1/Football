@@ -69,6 +69,43 @@ export async function deleteSlot(n: number): Promise<void> {
   await d.transaction('rw', [d.meta, d.clubs, d.players, d.fixtures, d.messages, d.reports, d.tx, d.kv], async () => { await Promise.all([d.meta, d.clubs, d.players, d.fixtures, d.messages, d.reports, d.tx, d.kv].map((t) => (t as Table).clear())); });
   if (n === slot) snap = null;
 }
+// ---- Backup: a whole slot as one portable object (optionally gzip-compressed by the UI layer). ----
+export const SAVE_FORMAT = 'touchline-save';
+export interface SaveFile {
+  format: typeof SAVE_FORMAT; formatVersion: 1; exportedAt: number; appDb: number;
+  meta: MetaRow; clubs: Club[]; players: Player[]; fixtures: Fixture[]; messages: Message[]; reports: ReportRow[]; tx: Tx[]; kv: KvRow[];
+}
+/** Reads one slot's rows straight from IndexedDB (everything is already persisted after each action). */
+export async function exportSlot(n: number): Promise<SaveFile> {
+  const d = dbFor(n);
+  const meta = await d.meta.get('meta');
+  if (!meta) throw new Error('That slot is empty');
+  const [clubs, players, fixtures, messages, reports, tx, kv] = await Promise.all([d.clubs.toArray(), d.players.toArray(), d.fixtures.toArray(), d.messages.toArray(), d.reports.toArray(), d.tx.toArray(), d.kv.toArray()]);
+  return { format: SAVE_FORMAT, formatVersion: 1, exportedAt: Date.now(), appDb: DB_VERSION, meta, clubs, players, fixtures, messages, reports, tx, kv };
+}
+/** Checks a parsed file before anything is written; returns an error message or null. */
+export function validateSaveFile(x: unknown): string | null {
+  const f = x as Partial<SaveFile> | null;
+  if (!f || typeof f !== 'object' || f.format !== SAVE_FORMAT) return 'This is not a Touchline save file.';
+  if (f.formatVersion !== 1) return 'This save file was made by an unsupported version.';
+  if (!f.meta || !Array.isArray(f.clubs) || !Array.isArray(f.players) || !Array.isArray(f.fixtures) || !Array.isArray(f.messages) || !Array.isArray(f.reports) || !Array.isArray(f.tx) || !Array.isArray(f.kv)) return 'The save file is incomplete or damaged.';
+  if ((f.appDb ?? 0) > DB_VERSION) return 'This save is from a newer version of Touchline. Please update the game first.';
+  if (!f.clubs.some((c) => c.id === f.meta!.userClubId)) return 'The save file is damaged (your club is missing).';
+  return null;
+}
+/** Replaces a slot with the contents of a validated save file. Older saves are upgraded when loaded. */
+export async function importSlot(n: number, f: SaveFile): Promise<void> {
+  const err = validateSaveFile(f);
+  if (err) throw new Error(err);
+  const d = dbFor(n);
+  await d.transaction('rw', [d.meta, d.clubs, d.players, d.fixtures, d.messages, d.reports, d.tx, d.kv], async () => {
+    await Promise.all([d.meta, d.clubs, d.players, d.fixtures, d.messages, d.reports, d.tx, d.kv].map((t) => (t as Table).clear()));
+    await d.meta.put(f.meta); await d.clubs.bulkPut(f.clubs); await d.players.bulkPut(f.players); await d.fixtures.bulkPut(f.fixtures);
+    await d.messages.bulkPut(f.messages); await d.reports.bulkPut(f.reports); await d.tx.bulkPut(f.tx); await d.kv.bulkPut(f.kv);
+  });
+  if (n === slot) snap = null;
+}
+
 export const TABLES = () => [db.meta, db.clubs, db.players, db.fixtures, db.messages, db.reports, db.tx, db.kv];
 
 const KV_KEYS = ['leagues', 'history', 'scouting', 'board', 'training', 'events', 'installments', 'cups', 'intl', 'career', 'mgrs', 'news', 'media', 'staffWorld'] as const;

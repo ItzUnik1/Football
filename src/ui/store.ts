@@ -10,7 +10,7 @@ export type Screen =
   | 'league' | 'fixtures' | 'stats'
   | 'transfers' | 'scouting'
   | 'club' | 'board' | 'finances' | 'history'
-  | 'cups' | 'international' | 'news' | 'records' | 'stadium' | 'facilities' | 'staff' | 'manager' | 'media';
+  | 'cups' | 'international' | 'news' | 'records' | 'stadium' | 'facilities' | 'staff' | 'manager' | 'media' | 'editor';
 
 /** Maps ids used by messages / older code onto real screens. */
 export const normalizeScreen = (s: string): Screen => {
@@ -26,6 +26,7 @@ export interface UiState {
   profileId?: string;
   selectedMessageId?: string;
   advanceMenu?: boolean;
+  modal?: 'menu' | 'settings' | 'quick' | 'import';
   newSeason?: boolean;
   calMonth?: number;
   reportId?: string;
@@ -122,6 +123,25 @@ class Store {
     this.game = null;
     this.ui = { ...this.ui, phase: 'start', screen: 'inbox', draft: undefined };
     await this.refreshSlots();
+  }
+
+  /** Writes the current career to its slot now (every action already saves; this is the explicit "Save game"). */
+  async saveNow(): Promise<boolean> {
+    if (!this.game) return true;
+    this.ui = { ...this.ui, saving: true }; this.emit();
+    try { await saveGame(this.game); return true; } catch (e) { console.error('save failed', e); return false; } finally { this.ui = { ...this.ui, saving: false }; this.emit(); }
+  }
+  async saveAndQuit(): Promise<void> {
+    if (!(await this.saveNow())) { this.toast('Save failed - storage unavailable', 'bad'); return; }
+    this.ui = { ...this.ui, modal: undefined };
+    await this.quitToMenu();
+  }
+
+  /** Like mutate but does not write to the database; the caller saves once at the end (used by quick-sim chunks). */
+  quiet<T>(fn: (g: Game) => T): T {
+    const r = fn(this.game!);
+    this.emit();
+    return r;
   }
 
   // Run a synchronous mutation on the game, then persist and re-render.

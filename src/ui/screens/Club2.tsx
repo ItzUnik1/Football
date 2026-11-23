@@ -8,7 +8,7 @@ import { fmtMoney } from '../../engine/valuation';
 import { topScorers } from '../../engine/game';
 
 const STATUS: Record<string, { t: string; c: string }> = {
-  active: { t: 'Not started', c: '#94a3b8' }, ontrack: { t: 'On track', c: '#22c55e' }, offtrack: { t: 'Off track', c: '#ef4444' }, met: { t: 'Achieved', c: '#22c55e' }, failed: { t: 'Failed', c: '#ef4444' },
+  active: { t: 'Not started', c: '#94a3b8' }, ontrack: { t: 'On track', c: 'rgb(var(--accent))' }, offtrack: { t: 'Off track', c: 'rgb(var(--bad))' }, met: { t: 'Achieved', c: 'rgb(var(--accent))' }, failed: { t: 'Failed', c: 'rgb(var(--bad))' },
 };
 
 export function BoardScreen() {
